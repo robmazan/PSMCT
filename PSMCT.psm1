@@ -25,7 +25,7 @@ function Get-MediaFiles {
     param (
         [string] $Path = "."
     )
-    Get-ChildItem -Path "$Path" -Name -File -Recurse -Include *.jpg,*.jpeg,*.mov,*.avi,*.mp4
+    Get-ChildItem -Path "$Path" -Name -File -Recurse -Include *.jpg,*.jpeg,*.mov,*.avi,*.mp4,*.3gp
 }
 
 <#
