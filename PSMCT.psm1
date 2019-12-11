@@ -95,8 +95,14 @@ function Get-DateTaken {
     } catch {
         $details = Get-FileDetails -Path $Path
 
+        if ($null -ne $details."Date taken") {
+            $detailsDate = ($details."Date taken").Replace([char]8206, ' ').Replace([char]8207, ' ')
+            $finalDate = [DateTime]::ParseExact($detailsDate, ' M/ d/ yyyy   h:mm tt', $null)
+        }
+
         if ($null -ne $details."Media created") {
-            $createdDate = ($details."Media created").Replace([char]8206, ' ').Replace([char]8207, ' ')
+            $detailsDate = $details."Media created"
+            $createdDate = $detailsDate.Replace([char]8206, ' ').Replace([char]8207, ' ')
             if ($null -ne ($createdDate -as [DateTime])) {
                 $finalDate = [DateTime]::Parse($createdDate)
             }
@@ -108,6 +114,19 @@ function Get-DateTaken {
     }
 
     return $finalDate
+}
+function IsSameFile($path1, $path2) {
+    $f1 = Get-ChildItem $path1
+    $f2 = Get-ChildItem $path2
+
+    if ($f1.Length -ne $f2.Length) {
+        return $false
+    }
+
+    $h1 = Get-FileHash $f1
+    $h2 = Get-FileHash $f2
+
+    return ($h1.Hash -eq $h2.Hash)
 }
 <#
 .SYNOPSIS
@@ -146,9 +165,7 @@ function Add-Media {
     $extCounter = 1
     $targetFilePath = Join-Path -Path $targetDirectory -ChildPath $($targetFileBase + (" {0:d4}" -f $extCounter) + $item.Extension)
     while ([System.IO.File]::Exists($targetFilePath)) {
-        $hashNew = Get-FileHash $Path
-        $hashExisting = Get-FileHash $targetFilePath
-        if ($hashNew -eq $hashExisting) {
+        if (IsSameFile $Path $targetFilePath) {
             Write-Debug "$Path has been added already to the media library."
             return
         }
