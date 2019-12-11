@@ -109,7 +109,61 @@ function Get-DateTaken {
 
     return $finalDate
 }
+<#
+.SYNOPSIS
+
+Add media files to a media library with a specified path and filename format
+#>
+function Add-Media {
+    param (
+        # Media file to be added
+        [Parameter(Mandatory=$true)][string] $Path,
+        # Media library folder path
+        [Parameter(Mandatory=$true)][string] $MediaLibraryPath,
+        # Path format string within media library
+        # Receives the media taken date as {0} and the original filename as {1}
+        [string] $DirectoryNameFormat = '{0:yyyy}\{0:MM}',
+        # Filename format string within media library
+        # Receives the media taken date as {0} and the original filename as {1}
+        [string] $FileNameFormat = '{0:yy}-{0:MM}-{0:dd} {0:HH}-{0:mm}-{0:ss}'
+    )
+    $item = Get-ChildItem $Path
+    if ($null -eq $item) {
+        return
+    }
+    $mediaLibrary = Get-Item $MediaLibraryPath
+    if ($null -eq $mediaLibrary) {
+        return
+    }
+    if ($mediaLibrary -isnot [System.IO.DirectoryInfo]) {
+        Write-Error "$MediaLibraryPath is not a directory!"
+        return
+    }
+    $dateTaken = Get-DateTaken -Path $Path
+    $targetDirectory = Join-Path -Path $MediaLibraryPath -ChildPath $($DirectoryNameFormat -f $dateTaken,$item.Name)
+    $targetFileBase = $FileNameFormat -f $dateTaken,$item.Name
+
+    $extCounter = 1
+    $targetFilePath = Join-Path -Path $targetDirectory -ChildPath $($targetFileBase + (" {0:d4}" -f $extCounter) + $item.Extension)
+    while ([System.IO.File]::Exists($targetFilePath)) {
+        $hashNew = Get-FileHash $Path
+        $hashExisting = Get-FileHash $targetFilePath
+        if ($hashNew -eq $hashExisting) {
+            Write-Debug "$Path has been added already to the media library."
+            return
+        }
+        $extCounter++;
+        $targetFilePath = Join-Path -Path $targetDirectory -ChildPath $($targetFileBase + (" {0:d4}" -f $extCounter) + $item.Extension)
+    }
+
+    if (-not (Test-Path $targetDirectory -PathType Container)) {
+        New-Item $targetDirectory -ItemType Directory
+    }
+
+    Copy-Item $Path $targetFilePath
+}
 
 Export-ModuleMember -Function Get-MediaFiles
 Export-ModuleMember -Function Get-DateTaken
 Export-ModuleMember -Function Get-FileDetails
+Export-ModuleMember -Function Add-Media
