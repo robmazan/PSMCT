@@ -174,13 +174,68 @@ function Add-Media {
     }
 
     if (-not (Test-Path $targetDirectory -PathType Container)) {
-        New-Item $targetDirectory -ItemType Directory
+        New-Item $targetDirectory -ItemType Directory | Out-Null
     }
 
     Copy-Item $Path $targetFilePath
+    return $targetFilePath
+}
+<#
+.SYNOPSIS
+
+Add a set of media files to the media library
+
+.DESCRIPTION
+
+Typical use case:
+
+1. Collect the media files into a file with:
+
+    PS > Get-MediaFiles > mediafiles.txt
+
+2. Edit the "mediafiles.txt" and remove the files from it that you don't want to add
+
+3. Load the file list to a variable:
+
+    PS > $files = Get-Content mediafiles.txt
+
+4. Add files to the media library and keep a list of the original location of the files:
+
+    PS > Add-BulkMedia -Paths $files -MediaLibraryPath C:\MyMediaLibrary\ | ConvertTo-Csv > C:\MyMediaLibrary\import.csv
+
+
+.OUTPUTS
+
+A list of objects with "From" and "To" properties, where "From" is the original file location and "To"
+is the new location. Note: "To" may be empty if the file was already existing in the media library folder.
+#>
+function Add-BulkMedia {
+    param (
+        # Media file paths to be added to the media library
+        [Parameter(Mandatory=$true)][string[]] $Paths,
+        # Media library folder path
+        [Parameter(Mandatory=$true)][string] $MediaLibraryPath,
+        # Path format string within media library
+        # See Add-Media for details
+        [string] $DirectoryNameFormat = '{0:yyyy}\{0:MM}',
+        # Filename format string within media library
+        # See Add-Media for details
+        [string] $FileNameFormat = '{0:yy}-{0:MM}-{0:dd} {0:HH}-{0:mm}-{0:ss}'
+    )
+    for ($i = 0; $i -lt $Paths.Length; $i++) {
+        $Path = $Paths[$i];
+
+        Write-Progress "Adding files to media library" -Status $Path -PercentComplete $($i*100/$Paths.Length)
+        $targetFile = Add-Media -Path $Path -MediaLibraryPath $MediaLibraryPath -DirectoryNameFormat $DirectoryNameFormat -FileNameFormat $FileNameFormat
+        [PSCustomObject]@{
+            From = $Path
+            To = $targetFile            
+        }        
+    }
 }
 
 Export-ModuleMember -Function Get-MediaFiles
 Export-ModuleMember -Function Get-DateTaken
 Export-ModuleMember -Function Get-FileDetails
 Export-ModuleMember -Function Add-Media
+Export-ModuleMember -Function Add-BulkMedia
