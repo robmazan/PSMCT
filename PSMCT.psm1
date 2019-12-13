@@ -1,4 +1,4 @@
-[Reflection.Assembly]::LoadFile('C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Drawing.dll') | Out-Null
+Add-Type -AssemblyName 'System.Drawing'
 
 <#
 .SYNOPSIS
@@ -74,21 +74,20 @@ Evaluates data in following order:
 
 1. EXIF information
 2. "Media created" metadata
-3. The date when the file was last modified
 
 .OUTPUTS
 
-Date when the file was taken (DateTime)
+Date when the file was taken (DateTime), or $null if the file
+has no such metadata attached.
 #>
 function Get-DateTaken {
     param (
         [Parameter(Mandatory=$true)][string] $Path
     )
-    $item = Get-ChildItem $Path
-    $finalDate = $item.LastWriteTime
+    $finalDate = $null
 
     try {
-        $image = New-Object System.Drawing.Bitmap -ArgumentList $Path
+        $image = [System.Drawing.Image]::FromFile($Path)
         [byte[]] $exifDTOrig = $image.GetPropertyItem(0x9003).Value
         $takenDate = [System.Text.Encoding]::Default.GetString($exifDTOrig, 0, $exifDTOrig.Length - 1)
         $finalDate = [DateTime]::ParseExact($takenDate, 'yyyy:MM:dd HH:mm:ss', $null)
@@ -115,6 +114,34 @@ function Get-DateTaken {
 
     return $finalDate
 }
+<#
+.SYNOPSIS
+
+Adds the date taken EXIF data to an image file
+#>
+function Add-DateTaken {
+    param (
+        # Source image file
+        [Parameter(Mandatory=$true)][string] $Path,
+        # Destination file
+        # Cannot be the same as the source file as for some funny
+        # reason that's causing deadlock...
+        [Parameter(Mandatory=$true)][string] $Destination,
+        # The DateTime to set as "Date Taken"
+        [Parameter(Mandatory=$true)][datetime] $DateTime
+    )
+
+    [System.Drawing.Image] $image = [System.Drawing.Image]::FromFile($Path)
+    $exifDateProp = $image.GetPropertyItem(0x9003)
+    $dateStr = $DateTime.ToString('yyyy:MM:dd HH:mm:ss')
+
+    $exifDateProp.Value = $dateStr.ToCharArray()
+    $image.SetPropertyItem($exifDateProp)
+
+    $image.Save($Destination)
+    $image.Dispose()
+}
+
 enum GoogleImageDateField {
     CreationTime
     ModificationTime
@@ -201,6 +228,9 @@ function Add-Media {
         return
     }
     $dateTaken = Get-DateTaken -Path $Path
+    if ($null -eq $dateTaken) {
+        $dateTaken = $item.LastWriteTime
+    }
     $targetDirectory = Join-Path -Path $MediaLibraryPath -ChildPath $($DirectoryNameFormat -f $dateTaken,$item.Name)
     $targetFileBase = $FileNameFormat -f $dateTaken,$item.Name
 
@@ -282,3 +312,4 @@ Export-ModuleMember -Function Get-FileDetails
 Export-ModuleMember -Function Add-Media
 Export-ModuleMember -Function Add-BulkMedia
 Export-ModuleMember -Function Get-GoogleDate
+Export-ModuleMember -Function Add-DateTaken
