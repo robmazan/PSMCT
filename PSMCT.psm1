@@ -115,6 +115,48 @@ function Get-DateTaken {
 
     return $finalDate
 }
+enum GoogleImageDateField {
+    CreationTime
+    ModificationTime
+    PhotoTakenTime
+}
+function Get-GoogleDate {
+    param (
+        [Parameter(Mandatory=$true)][string] $Path,
+        [Parameter(Mandatory=$true)][GoogleImageDateField] $DateField
+    )
+    $metadataFile = "$Path.json"
+    $details = Get-FileDetails -Path $Path
+
+    if (($null -eq $details."Media created") -and ($null -eq $details."Date taken")) {
+        $metadata = Get-Content $metadataFile | ConvertFrom-Json
+        [datetime]$epoch = [datetime]::Parse('1970-01-01')
+        switch ($DateField) {
+            CreationTime {  
+                if ($null -eq $metadata.creationTime) {
+                    Write-Error "No creationTime metadata found!"
+                    return
+                }
+                $date = $epoch.AddSeconds($metadata.creationTime.timestamp)
+            }
+            ModificationTime {
+                if ($null -eq $metadata.modificationTime) {
+                    Write-Error "No modificationTime metadata found!"
+                    return
+                }                
+                $date = $epoch.AddSeconds($metadata.modificationTime.timestamp)
+            }
+            PhotoTakenTime {
+                if ($null -eq $metadata.photoTakenTime) {
+                    Write-Error "No photoTakenTime metadata found!"
+                    return
+                }
+                $date = $epoch.AddSeconds($metadata.photoTakenTime.timestamp)
+            }
+        }
+    }
+    return $date
+}
 function IsSameFile($path1, $path2) {
     $f1 = Get-ChildItem $path1
     $f2 = Get-ChildItem $path2
@@ -239,3 +281,4 @@ Export-ModuleMember -Function Get-DateTaken
 Export-ModuleMember -Function Get-FileDetails
 Export-ModuleMember -Function Add-Media
 Export-ModuleMember -Function Add-BulkMedia
+Export-ModuleMember -Function Get-GoogleDate
