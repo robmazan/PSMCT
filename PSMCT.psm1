@@ -146,6 +146,7 @@ enum GoogleImageDateField {
     CreationTime
     ModificationTime
     PhotoTakenTime
+    All
 }
 function Get-GoogleDate {
     param (
@@ -155,7 +156,7 @@ function Get-GoogleDate {
     $metadataFile = "$Path.json"
     $details = Get-FileDetails -Path $Path
 
-    if (($null -eq $details."Media created") -and ($null -eq $details."Date taken")) {
+    if (($null -eq $details."Media created") -and ($null -eq $details."Date taken") -and (Test-Path $metadataFile)) {
         $metadata = Get-Content $metadataFile | ConvertFrom-Json
         [datetime]$epoch = [datetime]::Parse('1970-01-01')
         switch ($DateField) {
@@ -180,9 +181,40 @@ function Get-GoogleDate {
                 }
                 $date = $epoch.AddSeconds($metadata.photoTakenTime.timestamp)
             }
+            All {
+                $date = @{
+                    GoogleCreationTime = $(if ($null -ne $metadata.creationTime) {$epoch.AddSeconds($metadata.creationTime.timestamp)} else {$null})
+                    GoogleModificationTime = $(if ($null -ne $metadata.modificationTime) {$epoch.AddSeconds($metadata.modificationTime.timestamp)} else {$null})
+                    GooglePhotoTakenTime = $(if ($null -ne $metadata.PhotoTakenTime) {$epoch.AddSeconds($metadata.PhotoTakenTime.timestamp)} else {$null})
+                }
+            }
         }
     }
     return $date
+}
+function Get-AllDates {
+    param (
+        [Parameter(Mandatory=$true)][string] $Path
+    )
+    $item = Get-Item $Path
+    
+    $dates = @{
+        Path = $Path
+        DateTaken = (Get-DateTaken -Path $Path)
+        FileLastWriteTime = $item.LastWriteTime
+        FileCreationTime = $item.CreationTime
+    }
+
+    $googleDates = Get-GoogleDate -Path $Path -DateField All
+    if ($null -eq $googleDates) {
+        $googleDates = @{
+            GoogleCreationTime = $null
+            GoogleModificationTime = $null
+            GooglePhotoTakenTime = $null
+        }
+    }
+
+    return ($dates + $googleDates)
 }
 function IsSameFile($path1, $path2) {
     $f1 = Get-ChildItem $path1
@@ -313,3 +345,4 @@ Export-ModuleMember -Function Add-Media
 Export-ModuleMember -Function Add-BulkMedia
 Export-ModuleMember -Function Get-GoogleDate
 Export-ModuleMember -Function Add-DateTaken
+Export-ModuleMember -Function Get-AllDates
