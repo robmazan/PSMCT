@@ -1,4 +1,4 @@
-[Reflection.Assembly]::LoadFile('C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Drawing.dll') | Out-Null
+Add-Type -AssemblyName 'System.Drawing'
 
 <#
 .SYNOPSIS
@@ -74,21 +74,20 @@ Evaluates data in following order:
 
 1. EXIF information
 2. "Media created" metadata
-3. The date when the file was last modified
 
 .OUTPUTS
 
-Date when the file was taken (DateTime)
+Date when the file was taken (DateTime), or $null if the file
+has no such metadata attached.
 #>
 function Get-DateTaken {
     param (
         [Parameter(Mandatory=$true)][string] $Path
     )
-    $item = Get-ChildItem $Path
-    $finalDate = $item.LastWriteTime
+    $finalDate = $null
 
     try {
-        $image = New-Object System.Drawing.Bitmap -ArgumentList $Path
+        $image = [System.Drawing.Image]::FromFile($Path)
         [byte[]] $exifDTOrig = $image.GetPropertyItem(0x9003).Value
         $takenDate = [System.Text.Encoding]::Default.GetString($exifDTOrig, 0, $exifDTOrig.Length - 1)
         $finalDate = [DateTime]::ParseExact($takenDate, 'yyyy:MM:dd HH:mm:ss', $null)
@@ -114,6 +113,108 @@ function Get-DateTaken {
     }
 
     return $finalDate
+}
+<#
+.SYNOPSIS
+
+Adds the date taken EXIF data to an image file
+#>
+function Add-DateTaken {
+    param (
+        # Source image file
+        [Parameter(Mandatory=$true)][string] $Path,
+        # Destination file
+        # Cannot be the same as the source file as for some funny
+        # reason that's causing deadlock...
+        [Parameter(Mandatory=$true)][string] $Destination,
+        # The DateTime to set as "Date Taken"
+        [Parameter(Mandatory=$true)][datetime] $DateTime
+    )
+
+    [System.Drawing.Image] $image = [System.Drawing.Image]::FromFile($Path)
+    $exifDateProp = $image.GetPropertyItem(0x9003)
+    $dateStr = $DateTime.ToString('yyyy:MM:dd HH:mm:ss')
+
+    $exifDateProp.Value = $dateStr.ToCharArray()
+    $image.SetPropertyItem($exifDateProp)
+
+    $image.Save($Destination)
+    $image.Dispose()
+}
+
+enum GoogleImageDateField {
+    CreationTime
+    ModificationTime
+    PhotoTakenTime
+    All
+}
+function Get-GoogleDate {
+    param (
+        [Parameter(Mandatory=$true)][string] $Path,
+        [Parameter(Mandatory=$true)][GoogleImageDateField] $DateField
+    )
+    $metadataFile = "$Path.json"
+    $details = Get-FileDetails -Path $Path
+
+    if (($null -eq $details."Media created") -and ($null -eq $details."Date taken") -and (Test-Path $metadataFile)) {
+        $metadata = Get-Content $metadataFile | ConvertFrom-Json
+        [datetime]$epoch = [datetime]::Parse('1970-01-01')
+        switch ($DateField) {
+            CreationTime {  
+                if ($null -eq $metadata.creationTime) {
+                    Write-Error "No creationTime metadata found!"
+                    return
+                }
+                $date = $epoch.AddSeconds($metadata.creationTime.timestamp)
+            }
+            ModificationTime {
+                if ($null -eq $metadata.modificationTime) {
+                    Write-Error "No modificationTime metadata found!"
+                    return
+                }                
+                $date = $epoch.AddSeconds($metadata.modificationTime.timestamp)
+            }
+            PhotoTakenTime {
+                if ($null -eq $metadata.photoTakenTime) {
+                    Write-Error "No photoTakenTime metadata found!"
+                    return
+                }
+                $date = $epoch.AddSeconds($metadata.photoTakenTime.timestamp)
+            }
+            All {
+                $date = @{
+                    GoogleCreationTime = $(if ($null -ne $metadata.creationTime) {$epoch.AddSeconds($metadata.creationTime.timestamp)} else {$null})
+                    GoogleModificationTime = $(if ($null -ne $metadata.modificationTime) {$epoch.AddSeconds($metadata.modificationTime.timestamp)} else {$null})
+                    GooglePhotoTakenTime = $(if ($null -ne $metadata.PhotoTakenTime) {$epoch.AddSeconds($metadata.PhotoTakenTime.timestamp)} else {$null})
+                }
+            }
+        }
+    }
+    return $date
+}
+function Get-AllDates {
+    param (
+        [Parameter(Mandatory=$true)][string] $Path
+    )
+    $item = Get-Item $Path
+    
+    $dates = @{
+        Path = $Path
+        DateTaken = (Get-DateTaken -Path $Path)
+        FileLastWriteTime = $item.LastWriteTime
+        FileCreationTime = $item.CreationTime
+    }
+
+    $googleDates = Get-GoogleDate -Path $Path -DateField All
+    if ($null -eq $googleDates) {
+        $googleDates = @{
+            GoogleCreationTime = $null
+            GoogleModificationTime = $null
+            GooglePhotoTakenTime = $null
+        }
+    }
+
+    return ($dates + $googleDates)
 }
 function IsSameFile($path1, $path2) {
     $f1 = Get-ChildItem $path1
@@ -159,6 +260,9 @@ function Add-Media {
         return
     }
     $dateTaken = Get-DateTaken -Path $Path
+    if ($null -eq $dateTaken) {
+        $dateTaken = $item.LastWriteTime
+    }
     $targetDirectory = Join-Path -Path $MediaLibraryPath -ChildPath $($DirectoryNameFormat -f $dateTaken,$item.Name)
     $targetFileBase = $FileNameFormat -f $dateTaken,$item.Name
 
@@ -239,3 +343,6 @@ Export-ModuleMember -Function Get-DateTaken
 Export-ModuleMember -Function Get-FileDetails
 Export-ModuleMember -Function Add-Media
 Export-ModuleMember -Function Add-BulkMedia
+Export-ModuleMember -Function Get-GoogleDate
+Export-ModuleMember -Function Add-DateTaken
+Export-ModuleMember -Function Get-AllDates
