@@ -154,42 +154,43 @@ function Get-GoogleDate {
         [Parameter(Mandatory=$true)][GoogleImageDateField] $DateField
     )
     $metadataFile = "$Path.json"
-    $details = Get-FileDetails -Path $Path
-
-    if (($null -eq $details."Media created") -and ($null -eq $details."Date taken") -and (Test-Path $metadataFile)) {
+    if (Test-Path $metadataFile) {
         $metadata = Get-Content $metadataFile | ConvertFrom-Json
-        [datetime]$epoch = [datetime]::Parse('1970-01-01')
-        switch ($DateField) {
-            CreationTime {  
-                if ($null -eq $metadata.creationTime) {
-                    Write-Error "No creationTime metadata found!"
-                    return
-                }
-                $date = $epoch.AddSeconds($metadata.creationTime.timestamp)
+    } else {
+        $metadata = @{}
+    }
+    [datetime]$epoch = [datetime]::Parse('1970-01-01')
+    switch ($DateField) {
+        CreationTime {  
+            if ($null -eq $metadata.creationTime) {
+                Write-Error "No creationTime metadata found!"
+                return
             }
-            ModificationTime {
-                if ($null -eq $metadata.modificationTime) {
-                    Write-Error "No modificationTime metadata found!"
-                    return
-                }                
-                $date = $epoch.AddSeconds($metadata.modificationTime.timestamp)
+            $date = $epoch.AddSeconds($metadata.creationTime.timestamp)
+        }
+        ModificationTime {
+            if ($null -eq $metadata.modificationTime) {
+                Write-Error "No modificationTime metadata found!"
+                return
+            }                
+            $date = $epoch.AddSeconds($metadata.modificationTime.timestamp)
+        }
+        PhotoTakenTime {
+            if ($null -eq $metadata.photoTakenTime) {
+                Write-Error "No photoTakenTime metadata found!"
+                return
             }
-            PhotoTakenTime {
-                if ($null -eq $metadata.photoTakenTime) {
-                    Write-Error "No photoTakenTime metadata found!"
-                    return
-                }
-                $date = $epoch.AddSeconds($metadata.photoTakenTime.timestamp)
-            }
-            All {
-                $date = @{
-                    GoogleCreationTime = $(if ($null -ne $metadata.creationTime) {$epoch.AddSeconds($metadata.creationTime.timestamp)} else {$null})
-                    GoogleModificationTime = $(if ($null -ne $metadata.modificationTime) {$epoch.AddSeconds($metadata.modificationTime.timestamp)} else {$null})
-                    GooglePhotoTakenTime = $(if ($null -ne $metadata.PhotoTakenTime) {$epoch.AddSeconds($metadata.PhotoTakenTime.timestamp)} else {$null})
-                }
+            $date = $epoch.AddSeconds($metadata.photoTakenTime.timestamp)
+        }
+        All {
+            $date = @{
+                GoogleCreationTime = $(if ($null -ne $metadata.creationTime) {$epoch.AddSeconds($metadata.creationTime.timestamp)} else {$null})
+                GoogleModificationTime = $(if ($null -ne $metadata.modificationTime) {$epoch.AddSeconds($metadata.modificationTime.timestamp)} else {$null})
+                GooglePhotoTakenTime = $(if ($null -ne $metadata.PhotoTakenTime) {$epoch.AddSeconds($metadata.PhotoTakenTime.timestamp)} else {$null})
             }
         }
     }
+
     return $date
 }
 function Get-AllDates {
