@@ -56,14 +56,6 @@ function Invoke-UI {
 
     $window.Dispatcher.Invoke($Action, [Windows.Threading.DispatcherPriority]::ContextIdle)
 }
-
-[XML]$mediaListViewXaml = Get-Content $(Join-Path $PSScriptRoot "DateSetterWindow.xaml")
-$window = New-UIElement $mediaListViewXaml
-
-[System.Windows.Controls.ListView]$lvMediaFiles = $window.FindName("lvMediaFiles")
-[System.Windows.Controls.TextBlock]$statusText = $window.FindName("statusText")
-[System.Windows.Controls.ProgressBar]$statusProgress = $window.FindName("statusProgress")
-
 function Set-MediaItems {
     [CmdletBinding()]
     param (
@@ -76,6 +68,17 @@ function Set-MediaItems {
     $groupByDir = New-Object System.Windows.Data.PropertyGroupDescription "Directory"
     $cvMediaFiles.GroupDescriptions.Add($groupByDir)
 }
+
+[XML]$mediaListViewXaml = Get-Content $(Join-Path $PSScriptRoot "DateSetterWindow.xaml")
+$window = New-UIElement $mediaListViewXaml
+
+[System.Windows.Controls.ListView]$lvMediaFiles = $window.FindName("lvMediaFiles")
+[System.Windows.Controls.TextBlock]$statusText = $window.FindName("statusText")
+[System.Windows.Controls.ProgressBar]$statusProgress = $window.FindName("statusProgress")
+
+$lvMediaFiles.add_MouseDoubleClick({
+    Invoke-Item $lvMediaFiles.SelectedItem.Path
+})
 
 ([System.Windows.Controls.MenuItem]$window.FindName("menuScanDir")).add_Click({
     $targetFolder = Get-Folder
