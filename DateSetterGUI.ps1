@@ -46,10 +46,23 @@ function Get-Folder {
     }
 }
 
+function Invoke-UI {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)]
+        [scriptblock]
+        $Action
+    )
+
+    $window.Dispatcher.Invoke($Action, [Windows.Threading.DispatcherPriority]::ContextIdle)
+}
+
 [XML]$mediaListViewXaml = Get-Content $(Join-Path $PSScriptRoot "DateSetterWindow.xaml")
 $window = New-UIElement $mediaListViewXaml
 
 [System.Windows.Controls.ListView]$lvMediaFiles = $window.FindName("lvMediaFiles")
+[System.Windows.Controls.TextBlock]$statusText = $window.FindName("statusText")
+[System.Windows.Controls.ProgressBar]$statusProgress = $window.FindName("statusProgress")
 
 function Set-MediaItems {
     [CmdletBinding()]
@@ -66,22 +79,50 @@ function Set-MediaItems {
 
 ([System.Windows.Controls.MenuItem]$window.FindName("menuScanDir")).add_Click({
     $targetFolder = Get-Folder
-    Write-Host $targetFolder
     if ($null -eq $targetFolder) {
         return
     }
-    $window.Cursor = [System.Windows.Input.Cursors]::WaitCursor
-    $mediaItems = Get-MediaFiles $targetFolder | ForEach-Object {
-        $item = Get-Item $(Join-Path $targetFolder $_)
+    
+    Invoke-UI {
+        $window.Cursor = [System.Windows.Input.Cursors]::Wait
+        $statusText.Text = "Scanning directory for media files..."
+        $lvMediaFiles.ItemsSource = @()
+        $lvMediaFiles.IsEnabled = $false
+    }
+
+    [string[]]$mediaFiles = Get-MediaFiles $targetFolder
+
+    Invoke-UI {
+        $statusProgress.Visibility = [System.Windows.Visibility]::Visible
+        $statusProgress.Maximum = $mediaFiles.Length
+    }
+
+
+    $mediaItems = [System.Collections.ArrayList]::new()
+    for ($i = 0; $i -lt $mediaFiles.Length; $i++) {
+        Invoke-UI {
+            $statusProgress.Value = $i;
+            $statusText.Text = "Collecting metadata for {0}..." -f $mediaFiles[$i]
+        }
+
+        $item = Get-Item $(Join-Path $targetFolder $mediaFiles[$i])
         $hash = Get-FileHash $item.FullName
-        return [MediaItem](@{
+        $mediaItem = [MediaItem](@{
             Directory=$item.DirectoryName
             FileName=$item.Name
             Hash=$hash.Hash
         } + $(Get-AllDates $item.FullName))
+        $mediaItems.Add($mediaItem)
     }
-    Set-MediaItems $mediaItems
-    $window.Cursor = [System.Windows.Input.Cursors]::Arrow
+    
+    Invoke-UI {
+        Set-MediaItems $mediaItems
+        $statusProgress.Visibility = [System.Windows.Visibility]::Hidden
+        $statusText.Text = ""
+        $lvMediaFiles.IsEnabled = $true
+        $window.Cursor = [System.Windows.Input.Cursors]::Arrow
+    }
+
 });
 
 ([System.Windows.Controls.MenuItem]$window.FindName("menuUsePhotoTaken")).add_Click({Write-Host $lvMediaFiles.SelectedItems});

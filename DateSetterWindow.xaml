@@ -12,7 +12,16 @@
             </MenuItem>
         </Menu>
 
-        <ListView x:Name="lvMediaFiles" ScrollViewer.CanContentScroll="False" ScrollViewer.VerticalScrollBarVisibility="Visible">
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock x:Name="statusText"></TextBlock>
+            </StatusBarItem>
+            <StatusBarItem>
+                <ProgressBar x:Name="statusProgress" Value="50" Width="200" Height="15" Visibility="Hidden"></ProgressBar>
+            </StatusBarItem>
+        </StatusBar>
+
+        <ListView x:Name="lvMediaFiles" IsEnabled="False" ScrollViewer.CanContentScroll="False" ScrollViewer.VerticalScrollBarVisibility="Visible">
             <ListView.View>
                 <GridView>
                     <GridViewColumn Header="File" DisplayMemberBinding="{Binding FileName}" Width="120" />
