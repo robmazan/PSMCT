@@ -21,7 +21,16 @@
             </StatusBarItem>
         </StatusBar>
 
-        <ListView x:Name="lvMediaFiles" IsEnabled="False" ScrollViewer.CanContentScroll="False" ScrollViewer.VerticalScrollBarVisibility="Visible">
+        <ListView x:Name="lvMediaFolders" IsEnabled="False" ScrollViewer.CanContentScroll="False" ScrollViewer.VerticalScrollBarVisibility="Visible">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Directory" DisplayMemberBinding="{Binding Name}" Width="250" />
+                    <GridViewColumn Header="Count" DisplayMemberBinding="{Binding Count}" Width="50" />
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <ListView x:Name="lvMediaFiles" IsEnabled="False" ScrollViewer.CanContentScroll="False" ScrollViewer.VerticalScrollBarVisibility="Visible" DockPanel.Dock="Right">
             <ListView.View>
                 <GridView>
                     <GridViewColumn Header="File" DisplayMemberBinding="{Binding FileName}" Width="120" />

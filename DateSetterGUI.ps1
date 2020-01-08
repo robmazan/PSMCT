@@ -63,16 +63,14 @@ function Set-MediaItems {
         [MediaItem[]]
         $mediaItems
     )
-    $lvMediaFiles.ItemsSource = $mediaItems
-    [System.ComponentModel.ICollectionView]$cvMediaFiles = [System.Windows.Data.CollectionViewSource]::GetDefaultView($lvMediaFiles.ItemsSource)
-    $groupByDir = New-Object System.Windows.Data.PropertyGroupDescription "Directory"
-    $cvMediaFiles.GroupDescriptions.Add($groupByDir)
-    $lvMediaFiles.IsEnabled = $true
+    $lvMediaFolders.ItemsSource = $mediaItems | Group-Object "Directory" | Sort-Object "Name"
+    $lvMediaFolders.IsEnabled = $true
 }
 
 [XML]$mediaListViewXaml = Get-Content $(Join-Path $PSScriptRoot "DateSetterWindow.xaml")
 $window = New-UIElement $mediaListViewXaml
 
+[System.Windows.Controls.ListView]$lvMediaFolders = $window.FindName("lvMediaFolders")
 [System.Windows.Controls.ListView]$lvMediaFiles = $window.FindName("lvMediaFiles")
 [System.Windows.Controls.TextBlock]$statusText = $window.FindName("statusText")
 [System.Windows.Controls.ProgressBar]$statusProgress = $window.FindName("statusProgress")
@@ -90,6 +88,8 @@ $lvMediaFiles.add_MouseDoubleClick({
     Invoke-UI {
         $window.Cursor = [System.Windows.Input.Cursors]::Wait
         $statusText.Text = "Scanning directory for media files..."
+        $lvMediaFolders.ItemsSource = @()
+        $lvMediaFolders.IsEnabled = $false
         $lvMediaFiles.ItemsSource = @()
         $lvMediaFiles.IsEnabled = $false
     }
@@ -140,13 +140,36 @@ $lvMediaFiles.add_MouseDoubleClick({
     $openDialog = [Microsoft.Win32.OpenFileDialog]::new()
     $openDialog.Filter = "JSON file (*.json)|*.json"
     if ($openDialog.ShowDialog() -eq $true) {
+        Invoke-UI {
+            $window.Cursor = [System.Windows.Input.Cursors]::Wait
+            $statusText.Text = "Importing media list..."
+            $lvMediaFolders.ItemsSource = @()
+            $lvMediaFolders.IsEnabled = $false
+            $lvMediaFiles.ItemsSource = @()
+            $lvMediaFiles.IsEnabled = $false
+        }
+    
         $mediaItems = Get-Content $($openDialog.FileName) | ConvertFrom-Json
         Invoke-UI {
             Set-MediaItems $mediaItems
+            $statusText.Text = ""
+            $window.Cursor = [System.Windows.Input.Cursors]::Arrow
         }
     }
 })
 
+$lvMediaFolders.add_SelectionChanged({
+    $selectedMediaItems = $lvMediaFolders.SelectedItems | Select-Object -ExpandProperty "Group"
+    if ($selectedMediaItems -isnot [System.Collections.IEnumerable]) {
+        $selectedMediaItems = @($selectedMediaItems)
+    }
+
+    $lvMediaFiles.ItemsSource = $selectedMediaItems
+    [System.ComponentModel.ICollectionView]$cvMediaFiles = [System.Windows.Data.CollectionViewSource]::GetDefaultView($lvMediaFiles.ItemsSource)
+    $groupByDir = New-Object System.Windows.Data.PropertyGroupDescription "Directory"
+    $cvMediaFiles.GroupDescriptions.Add($groupByDir)
+    $lvMediaFiles.IsEnabled = $true
+})
 ([System.Windows.Controls.MenuItem]$window.FindName("menuUsePhotoTaken")).add_Click({Write-Host $lvMediaFiles.SelectedItems});
 ([System.Windows.Controls.MenuItem]$window.FindName("menuUseCustomDate")).add_Click({Get-DateFromDialog});
 
