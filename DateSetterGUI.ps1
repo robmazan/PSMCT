@@ -68,6 +68,9 @@ function Update-MediaItems {
     }
     $lvMediaFolders.ItemsSource = $folderGroups
     $lvMediaFolders.IsEnabled = $true
+
+    $hashGroups = $items | Group-Object "Hash"
+    $statusText.Text = "{0} items displayed in {1} folders, {2} of them are unique" -f $items.Count,$folderGroups.Count,$hashGroups.Count
 }
 
 [XML]$mediaListViewXaml = Get-Content $(Join-Path $PSScriptRoot "DateSetterWindow.xaml")
@@ -130,7 +133,6 @@ $lvMediaFiles.add_MouseDoubleClick({
     Invoke-UI {
         Update-MediaItems
         $statusProgress.Visibility = [System.Windows.Visibility]::Hidden
-        $statusText.Text = ""
         $window.Cursor = [System.Windows.Input.Cursors]::Arrow
     }
 
@@ -167,7 +169,6 @@ $lvMediaFiles.add_MouseDoubleClick({
     
         Invoke-UI {
             Update-MediaItems
-            $statusText.Text = ""
             $window.Cursor = [System.Windows.Input.Cursors]::Arrow
         }
     }

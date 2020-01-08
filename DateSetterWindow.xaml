@@ -11,7 +11,7 @@
                 <MenuItem x:Name="menuExport" Header="_Export media list..." />
             </MenuItem>
         </Menu>
-        
+
         <ToolBar DockPanel.Dock="Top">
             <ToggleButton x:Name="btnMissingDate">Show only items with missing Date Taken</ToggleButton>
         </ToolBar>
@@ -20,7 +20,7 @@
             <StatusBarItem>
                 <TextBlock x:Name="statusText"></TextBlock>
             </StatusBarItem>
-            <StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
                 <ProgressBar x:Name="statusProgress" Value="50" Width="200" Height="15" Visibility="Hidden"></ProgressBar>
             </StatusBarItem>
         </StatusBar>
