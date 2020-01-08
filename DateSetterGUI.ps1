@@ -67,6 +67,7 @@ function Set-MediaItems {
     [System.ComponentModel.ICollectionView]$cvMediaFiles = [System.Windows.Data.CollectionViewSource]::GetDefaultView($lvMediaFiles.ItemsSource)
     $groupByDir = New-Object System.Windows.Data.PropertyGroupDescription "Directory"
     $cvMediaFiles.GroupDescriptions.Add($groupByDir)
+    $lvMediaFiles.IsEnabled = $true
 }
 
 [XML]$mediaListViewXaml = Get-Content $(Join-Path $PSScriptRoot "DateSetterWindow.xaml")
@@ -122,11 +123,29 @@ $lvMediaFiles.add_MouseDoubleClick({
         Set-MediaItems $mediaItems
         $statusProgress.Visibility = [System.Windows.Visibility]::Hidden
         $statusText.Text = ""
-        $lvMediaFiles.IsEnabled = $true
         $window.Cursor = [System.Windows.Input.Cursors]::Arrow
     }
 
 });
+
+([System.Windows.Controls.MenuItem]$window.FindName("menuExport")).add_Click({
+    $saveDialog = [Microsoft.Win32.SaveFileDialog]::new()
+    $saveDialog.Filter = "JSON file (*.json)|*.json"
+    if ($saveDialog.ShowDialog() -eq $true) {
+        $lvMediaFiles.ItemsSource | ConvertTo-Json > $($saveDialog.FileName)
+    }
+})
+
+([System.Windows.Controls.MenuItem]$window.FindName("menuImport")).add_Click({
+    $openDialog = [Microsoft.Win32.OpenFileDialog]::new()
+    $openDialog.Filter = "JSON file (*.json)|*.json"
+    if ($openDialog.ShowDialog() -eq $true) {
+        $mediaItems = Get-Content $($openDialog.FileName) | ConvertFrom-Json
+        Invoke-UI {
+            Set-MediaItems $mediaItems
+        }
+    }
+})
 
 ([System.Windows.Controls.MenuItem]$window.FindName("menuUsePhotoTaken")).add_Click({Write-Host $lvMediaFiles.SelectedItems});
 ([System.Windows.Controls.MenuItem]$window.FindName("menuUseCustomDate")).add_Click({Get-DateFromDialog});
