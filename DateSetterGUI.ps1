@@ -134,7 +134,7 @@ $lvMediaFiles.add_MouseDoubleClick({
     $saveDialog = [Microsoft.Win32.SaveFileDialog]::new()
     $saveDialog.Filter = "JSON file (*.json)|*.json"
     if ($saveDialog.ShowDialog() -eq $true) {
-        $lvMediaFiles.ItemsSource | ConvertTo-Json > $($saveDialog.FileName)
+        $mediaItems | ConvertTo-Json > $($saveDialog.FileName)
     }
 })
 
