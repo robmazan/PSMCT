@@ -57,7 +57,12 @@ function Invoke-UI {
     $window.Dispatcher.Invoke($Action, [Windows.Threading.DispatcherPriority]::ContextIdle)
 }
 function Update-MediaItems {
-    $folderGroups = $mediaItems | Group-Object "Directory" | Sort-Object "Name"
+    if ($btnMissingDate.IsChecked) {
+        $items = $mediaItems | Where-Object { $null -eq $_.DateTaken }
+    } else {
+        $items = $mediaItems
+    }
+    $folderGroups = $items | Group-Object "Directory" | Sort-Object "Name"
     if ($folderGroups -isnot [array]) {
         $folderGroups = @($folderGroups)
     }
@@ -73,6 +78,7 @@ $window = New-UIElement $mediaListViewXaml
 [System.Windows.Controls.TextBlock]$statusText = $window.FindName("statusText")
 [System.Windows.Controls.ProgressBar]$statusProgress = $window.FindName("statusProgress")
 $mediaItems = [System.Collections.ArrayList]::new()
+[System.Windows.Controls.Primitives.ToggleButton]$btnMissingDate = $window.FindName("btnMissingDate")
 
 $lvMediaFiles.add_MouseDoubleClick({
     Invoke-Item $lvMediaFiles.SelectedItem.Path
@@ -200,6 +206,8 @@ $lvMediaFolders.add_SelectionChanged({
         Invoke-UI { Update-MediaItems }
     }
 });
+
+$btnMissingDate.add_Click({ Invoke-UI { Update-MediaItems } });
 ([System.Windows.Controls.MenuItem]$window.FindName("menuUsePhotoTaken")).add_Click({Write-Host $lvMediaFiles.SelectedItems});
 ([System.Windows.Controls.MenuItem]$window.FindName("menuUseCustomDate")).add_Click({Get-DateFromDialog});
 

@@ -7,10 +7,14 @@
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
                 <MenuItem x:Name="menuScanDir" Header="_Add folder to media list..." />
-                <MenuItem x:Name="menuExport" Header="_Export media list..." />
                 <MenuItem x:Name="menuImport" Header="_Import media list..." />
+                <MenuItem x:Name="menuExport" Header="_Export media list..." />
             </MenuItem>
         </Menu>
+        
+        <ToolBar DockPanel.Dock="Top">
+            <ToggleButton x:Name="btnMissingDate">Show only items with missing Date Taken</ToggleButton>
+        </ToolBar>
 
         <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem>
