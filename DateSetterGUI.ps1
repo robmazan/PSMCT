@@ -56,14 +56,12 @@ function Invoke-UI {
 
     $window.Dispatcher.Invoke($Action, [Windows.Threading.DispatcherPriority]::ContextIdle)
 }
-function Set-MediaItems {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true)]
-        [MediaItem[]]
-        $mediaItems
-    )
-    $lvMediaFolders.ItemsSource = $mediaItems | Group-Object "Directory" | Sort-Object "Name"
+function Update-MediaItems {
+    $folderGroups = $mediaItems | Group-Object "Directory" | Sort-Object "Name"
+    if ($folderGroups -isnot [array]) {
+        $folderGroups = @($folderGroups)
+    }
+    $lvMediaFolders.ItemsSource = $folderGroups
     $lvMediaFolders.IsEnabled = $true
 }
 
@@ -74,6 +72,7 @@ $window = New-UIElement $mediaListViewXaml
 [System.Windows.Controls.ListView]$lvMediaFiles = $window.FindName("lvMediaFiles")
 [System.Windows.Controls.TextBlock]$statusText = $window.FindName("statusText")
 [System.Windows.Controls.ProgressBar]$statusProgress = $window.FindName("statusProgress")
+$mediaItems = [System.Collections.ArrayList]::new()
 
 $lvMediaFiles.add_MouseDoubleClick({
     Invoke-Item $lvMediaFiles.SelectedItem.Path
@@ -101,8 +100,6 @@ $lvMediaFiles.add_MouseDoubleClick({
         $statusProgress.Maximum = $mediaFiles.Length
     }
 
-
-    $mediaItems = [System.Collections.ArrayList]::new()
     for ($i = 0; $i -lt $mediaFiles.Length; $i++) {
         Invoke-UI {
             $statusProgress.Value = $i;
@@ -118,9 +115,14 @@ $lvMediaFiles.add_MouseDoubleClick({
         } + $(Get-AllDates $item.FullName))
         $mediaItems.Add($mediaItem)
     }
+    $uniqueItems = $mediaItems | Sort-Object "Path" -Unique
+    if ($uniqueItems -isnot [array]) {
+        $uniqueItems = @($uniqueItems)
+    }
+    $mediaItems = [System.Collections.ArrayList]::new($uniqueItems)
     
     Invoke-UI {
-        Set-MediaItems $mediaItems
+        Update-MediaItems
         $statusProgress.Visibility = [System.Windows.Visibility]::Hidden
         $statusText.Text = ""
         $window.Cursor = [System.Windows.Input.Cursors]::Arrow
@@ -149,9 +151,16 @@ $lvMediaFiles.add_MouseDoubleClick({
             $lvMediaFiles.IsEnabled = $false
         }
     
-        $mediaItems = Get-Content $($openDialog.FileName) | ConvertFrom-Json
+        $importedItems = Get-Content $($openDialog.FileName) | ConvertFrom-Json
+        $mediaItems.AddRange($importedItems)
+        $uniqueItems = $mediaItems | Sort-Object "Path" -Unique
+        if ($uniqueItems -isnot [array]) {
+            $uniqueItems = @($uniqueItems)
+        }
+        $mediaItems = [System.Collections.ArrayList]::new($uniqueItems)
+    
         Invoke-UI {
-            Set-MediaItems $mediaItems
+            Update-MediaItems
             $statusText.Text = ""
             $window.Cursor = [System.Windows.Input.Cursors]::Arrow
         }
@@ -170,6 +179,27 @@ $lvMediaFolders.add_SelectionChanged({
     $cvMediaFiles.GroupDescriptions.Add($groupByDir)
     $lvMediaFiles.IsEnabled = $true
 })
+
+([System.Windows.Controls.MenuItem]$window.FindName("menuRemoveItem")).add_Click({
+    if ($lvMediaFiles.SelectedItems.Count -eq 1) {
+        $message = "Do you want to remove {0} from the media list?"  -f $lvMediaFiles.SelectedItems[0].FileName
+        $message += [System.Environment]::NewLine + "(this doesn't affect the original file)"
+    } else {
+        $message = "Do you want to remove these {0} items from the media list?"  -f $lvMediaFiles.SelectedItems.Count
+        $message += [System.Environment]::NewLine + "(this doesn't affect the original files)"
+    }
+    [System.Windows.MessageBoxResult]$result = [System.Windows.MessageBox]::Show(
+        $message, 
+        "Remove item from media list", 
+        [System.Windows.MessageBoxButton]::YesNo,
+        [System.Windows.MessageBoxImage]::Exclamation,
+        [System.Windows.MessageBoxResult]::No
+    )
+    if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+        $lvMediaFiles.SelectedItems | ForEach-Object { $mediaItems.Remove($_) }
+        Invoke-UI { Update-MediaItems }
+    }
+});
 ([System.Windows.Controls.MenuItem]$window.FindName("menuUsePhotoTaken")).add_Click({Write-Host $lvMediaFiles.SelectedItems});
 ([System.Windows.Controls.MenuItem]$window.FindName("menuUseCustomDate")).add_Click({Get-DateFromDialog});
 
