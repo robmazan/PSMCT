@@ -60,6 +60,7 @@
             <ListView.ContextMenu>
                 <ContextMenu>
                     <MenuItem x:Name="menuRemoveItem" Header="Remove from media list" />
+                    <MenuItem x:Name="menuRemoveItemAndDups" Header="Remove from media list - with all duplicates" />
                     <Separator />
                     <MenuItem x:Name="menuUsePhotoTaken" Header="Use Photo Taken Time from Google metadata (if available)" />
                     <MenuItem x:Name="menuUseGoogleCreation" Header="Use Creation Time from Google metadata (if available)" />

@@ -69,8 +69,22 @@ function Update-MediaItems {
     $lvMediaFolders.ItemsSource = $folderGroups
     $lvMediaFolders.IsEnabled = $true
 
-    $hashGroups = $items | Group-Object "Hash"
+    Set-Variable -Name "hashGroups" -Value $($items | Group-Object "Hash") -Scope Global
     $statusText.Text = "{0} items displayed in {1} folders, {2} of them are unique" -f $items.Count,$folderGroups.Count,$hashGroups.Count
+}
+
+function Remove-MediaItem {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][MediaItem]$Item,
+        [switch]$RemoveDuplicates
+    )
+    if ($RemoveDuplicates) {
+        $hashGroup = $($hashGroups | Where-Object { $_.Name -eq $Item.Hash}).Group
+        $hashGroup | ForEach-Object { $mediaItems.Remove($_) }
+    } else {
+        $mediaItems.Remove($Item)
+    }
 }
 
 [XML]$mediaListViewXaml = Get-Content $(Join-Path $PSScriptRoot "DateSetterWindow.xaml")
@@ -81,6 +95,7 @@ $window = New-UIElement $mediaListViewXaml
 [System.Windows.Controls.TextBlock]$statusText = $window.FindName("statusText")
 [System.Windows.Controls.ProgressBar]$statusProgress = $window.FindName("statusProgress")
 $mediaItems = [System.Collections.ArrayList]::new()
+$hashGroups = @()
 [System.Windows.Controls.Primitives.ToggleButton]$btnMissingDate = $window.FindName("btnMissingDate")
 
 $lvMediaFiles.add_MouseDoubleClick({
@@ -187,13 +202,20 @@ $lvMediaFolders.add_SelectionChanged({
     $lvMediaFiles.IsEnabled = $true
 })
 
-([System.Windows.Controls.MenuItem]$window.FindName("menuRemoveItem")).add_Click({
+$removeHandler = {
+    $menuItem = [System.Windows.Controls.MenuItem]$this
+    $removeDuplicates = $menuItem.Header.ToString().Contains("duplicates")
+
     if ($lvMediaFiles.SelectedItems.Count -eq 1) {
         $message = "Do you want to remove {0} from the media list?"  -f $lvMediaFiles.SelectedItems[0].FileName
         $message += [System.Environment]::NewLine + "(this doesn't affect the original file)"
     } else {
         $message = "Do you want to remove these {0} items from the media list?"  -f $lvMediaFiles.SelectedItems.Count
         $message += [System.Environment]::NewLine + "(this doesn't affect the original files)"
+    }
+    if ($removeDuplicates) {
+        $message += [System.Environment]::NewLine + [System.Environment]::NewLine
+        $message += "Duplicates of this file will also be removed from the list too, if there are any."
     }
     [System.Windows.MessageBoxResult]$result = [System.Windows.MessageBox]::Show(
         $message, 
@@ -203,10 +225,19 @@ $lvMediaFolders.add_SelectionChanged({
         [System.Windows.MessageBoxResult]::No
     )
     if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
-        $lvMediaFiles.SelectedItems | ForEach-Object { $mediaItems.Remove($_) }
+        $lvMediaFiles.SelectedItems | ForEach-Object {
+            if ($removeDuplicates) {
+                Remove-MediaItem -Item $_ -RemoveDuplicates
+            } else {
+                Remove-MediaItem -Item $_
+            }
+        }
         Invoke-UI { Update-MediaItems }
-    }
-});
+    }    
+}
+
+([System.Windows.Controls.MenuItem]$window.FindName("menuRemoveItem")).add_Click($removeHandler);
+([System.Windows.Controls.MenuItem]$window.FindName("menuRemoveItemAndDups")).add_Click($removeHandler);
 
 $btnMissingDate.add_Click({ Invoke-UI { Update-MediaItems } });
 ([System.Windows.Controls.MenuItem]$window.FindName("menuUsePhotoTaken")).add_Click({Write-Host $lvMediaFiles.SelectedItems});
