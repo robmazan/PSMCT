@@ -13,6 +13,7 @@ class MediaItem {
     [nullable[datetime]]$GoogleCreationTime
     [nullable[datetime]]$GoogleModificationTime
     [ValidateNotNullOrEmpty()][string]$Hash
+    [int]$InstanceCount
 }
 
 function New-UIElement {
@@ -69,8 +70,13 @@ function Update-MediaItems {
     $lvMediaFolders.ItemsSource = $folderGroups
     $lvMediaFolders.IsEnabled = $true
 
-    Set-Variable -Name "hashGroups" -Value $($items | Group-Object "Hash") -Scope Global
+    Set-Variable -Name "hashGroups" -Value $($items | Group-Object "Hash") -Scope Script
     $statusText.Text = "{0} items displayed in {1} folders, {2} of them are unique" -f $items.Count,$folderGroups.Count,$hashGroups.Count
+
+    $mediaItems | ForEach-Object {
+        $hash = $_.Hash
+        $_.InstanceCount = $($hashGroups | Where-Object {$_.Name -eq $hash}).Group.Count
+    }
 }
 
 function Remove-MediaItem {

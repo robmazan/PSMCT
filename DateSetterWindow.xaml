@@ -38,6 +38,7 @@
             <ListView.View>
                 <GridView>
                     <GridViewColumn Header="File" DisplayMemberBinding="{Binding FileName}" Width="120" />
+                    <GridViewColumn Header="Instance Count" DisplayMemberBinding="{Binding InstanceCount}" Width="40" />
                     <GridViewColumn Header="Date Taken" DisplayMemberBinding="{Binding DateTaken}" Width="140" />
                     <GridViewColumn Header="File Creation Time" DisplayMemberBinding="{Binding FileCreationTime}" Width="140" />
                     <GridViewColumn Header="File Last Write Time" DisplayMemberBinding="{Binding FileLastWriteTime}" Width="140" />
