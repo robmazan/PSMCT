@@ -73,6 +73,7 @@ function Update-MediaItems {
     Set-Variable -Name "hashGroups" -Value $($items | Group-Object "Hash") -Scope Script
     $statusText.Text = "{0} items displayed in {1} folders, {2} of them are unique" -f $items.Count,$folderGroups.Count,$hashGroups.Count
 
+    # TODO: slow processing on import(?)
     $mediaItems | ForEach-Object {
         $hash = $_.Hash
         $_.InstanceCount = $($hashGroups | Where-Object {$_.Name -eq $hash}).Group.Count
@@ -181,7 +182,8 @@ $lvMediaFiles.add_MouseDoubleClick({
         }
     
         $importedItems = Get-Content $($openDialog.FileName) | ConvertFrom-Json
-        $mediaItems.AddRange($importedItems)
+        $normalizedItems = $importedItems.ForEach({[MediaItem]$_})
+        $mediaItems.AddRange($normalizedItems)
         $uniqueItems = $mediaItems | Sort-Object "Path" -Unique
         if ($uniqueItems -isnot [array]) {
             $uniqueItems = @($uniqueItems)
@@ -246,7 +248,43 @@ $removeHandler = {
 ([System.Windows.Controls.MenuItem]$window.FindName("menuRemoveItemAndDups")).add_Click($removeHandler);
 
 $btnMissingDate.add_Click({ Invoke-UI { Update-MediaItems } });
-([System.Windows.Controls.MenuItem]$window.FindName("menuUsePhotoTaken")).add_Click({Write-Host $lvMediaFiles.SelectedItems});
-([System.Windows.Controls.MenuItem]$window.FindName("menuUseCustomDate")).add_Click({Get-DateFromDialog});
+
+$dateSourceMap = @{
+    menuUsePhotoTaken = "GooglePhotoTakenTime"
+    menuUseGoogleCreation = "GoogleCreationTime"
+    menuUseGoogleModification = "GoogleModificationTime"
+    menuUseFileCreation = "FileCreationTime"
+    menuUseFileLastWrite = "FileLastWriteTime"
+    menuUseCustomDate = $null
+}
+$dateSourceMap.Keys | ForEach-Object {
+    ([System.Windows.Controls.MenuItem]$window.FindName($_)).add_Click({
+        [System.Windows.Controls.MenuItem]$menuItem = $this
+
+        $dateSource = $dateSourceMap[$menuItem.Name]
+
+        if ($null -eq $dateSource) {
+            $dateFromInput = Get-DateFromDialog
+        }
+        $datesToSet = $lvMediaFiles.SelectedItems | ForEach-Object {
+            if ($null -eq $dateSource) {
+                $dateToSet = $dateFromInput
+            } else {
+                $dates = Get-AllDates $_.Path
+                try {
+                    $dateToSet = $dates[$dateSource]
+                } catch {
+                    $dateToSet = $null
+                }
+            }
+            [PSCustomObject]@{
+                Path = $_.Path
+                Date = $dateToSet
+            }
+        }
+        $datesToSet | ogv
+        # TODO: update for all hashes
+    });
+}
 
 $window.ShowDialog() | Out-Null
