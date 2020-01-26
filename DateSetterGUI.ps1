@@ -16,6 +16,32 @@ class MediaItem {
     [int]$InstanceCount
 }
 
+$debugTimers = @{}
+
+function Start-DebugTimer {
+    [CmdletBinding()]
+    param (
+        [Parameter()][string]$Message
+    )
+    Write-Debug $Message
+    $id = New-Guid
+    $debugTimers.Add($id.Guid, [datetime]::Now)
+    return $id
+}
+
+function Stop-DebugTimer {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][string]$Id,
+        [Parameter()][string]$Message = "Done in {0} seconds!"
+    )
+    $startTime = $debugTimers[$Id]
+    $totalSeconds = $([datetime]::Now - $startTime).TotalSeconds
+    $debugTimers.Remove($Id)
+    $debugMessage = $Message -f $totalSeconds
+    Write-Debug $debugMessage
+}
+
 function New-UIElement {
     [CmdletBinding()]
     [OutputType([System.Windows.UIElement])]
@@ -63,21 +89,30 @@ function Update-MediaItems {
     } else {
         $items = $mediaItems
     }
+
+    $t = Start-DebugTimer "Calculating folder groups..."
     $folderGroups = $items | Group-Object "Directory" | Sort-Object "Name"
     if ($folderGroups -isnot [array]) {
         $folderGroups = @($folderGroups)
     }
+    Stop-DebugTimer -Id $t
+
     $lvMediaFolders.ItemsSource = $folderGroups
     $lvMediaFolders.IsEnabled = $true
 
+    $t = Start-DebugTimer "Calculating hash groups..."
     Set-Variable -Name "hashGroups" -Value $($items | Group-Object "Hash") -Scope Script
+    Stop-DebugTimer -Id $t
     $statusText.Text = "{0} items displayed in {1} folders, {2} of them are unique" -f $items.Count,$folderGroups.Count,$hashGroups.Count
 
-    # TODO: slow processing on import(?)
-    $mediaItems | ForEach-Object {
-        $hash = $_.Hash
-        $_.InstanceCount = $($hashGroups | Where-Object {$_.Name -eq $hash}).Group.Count
+    $t = Start-DebugTimer "Calculating Instance Count..."
+    $hashGroups | ForEach-Object {
+        $count = $_.Group.Count
+        $_.Group | ForEach-Object {
+            $_.InstanceCount = $count
+        }
     }
+    Stop-DebugTimer -Id $t
 }
 
 function Remove-MediaItem {
@@ -180,14 +215,23 @@ $lvMediaFiles.add_MouseDoubleClick({
             $lvMediaFiles.ItemsSource = @()
             $lvMediaFiles.IsEnabled = $false
         }
-    
+
+        $t = Start-DebugTimer "Reading and converting $($openDialog.FileName)..."
         $importedItems = Get-Content $($openDialog.FileName) | ConvertFrom-Json
+        Stop-DebugTimer -Id $t
+
+        $t = Start-DebugTimer "Normalizing items..."
         $normalizedItems = $importedItems.ForEach({[MediaItem]$_})
+        Stop-DebugTimer -Id $t
+
         $mediaItems.AddRange($normalizedItems)
+
+        $t = Start-DebugTimer "Removing same path items..."
         $uniqueItems = $mediaItems | Sort-Object "Path" -Unique
         if ($uniqueItems -isnot [array]) {
             $uniqueItems = @($uniqueItems)
         }
+        Stop-DebugTimer -Id $t
         $mediaItems = [System.Collections.ArrayList]::new($uniqueItems)
     
         Invoke-UI {
