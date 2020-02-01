@@ -16,6 +16,12 @@
             <ToggleButton x:Name="btnMissingDate">Show only items with missing Date Taken</ToggleButton>
         </ToolBar>
 
+        <StackPanel x:Name="itemDetailsPanel" DockPanel.Dock="Right" Width="400" Visibility="Collapsed">
+            <MediaElement x:Name="preview" IsMuted="True"></MediaElement>
+            <TextBlock FontWeight="Bold" Margin="0,10,0,20">Duplicates:</TextBlock>
+            <ListBox x:Name="lbDuplicates"></ListBox>
+        </StackPanel>
+
         <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem>
                 <TextBlock x:Name="statusText"></TextBlock>

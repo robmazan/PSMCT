@@ -139,9 +139,32 @@ $window = New-UIElement $mediaListViewXaml
 $mediaItems = [System.Collections.ArrayList]::new()
 $hashGroups = @()
 [System.Windows.Controls.Primitives.ToggleButton]$btnMissingDate = $window.FindName("btnMissingDate")
+[System.Windows.Controls.StackPanel]$itemDetailsPanel = $window.FindName("itemDetailsPanel")
+[System.Windows.Controls.MediaElement]$preview = $window.FindName("preview")
+[System.Windows.Controls.ListBox]$lbDuplicates = $window.FindName("lbDuplicates")
 
 $lvMediaFiles.add_MouseDoubleClick({
     Invoke-Item $lvMediaFiles.SelectedItem.Path
+})
+
+$lvMediaFiles.add_SelectionChanged({
+    Invoke-UI {
+        if ($lvMediaFiles.SelectedItems.Count -eq 1) {
+            $imageUri = [uri]::new($lvMediaFiles.SelectedItem.Path)
+            $preview.Source = $imageUri
+            $hashGroup = $hashGroups | Where-Object { $_.Name -eq $lvMediaFiles.SelectedItem.Hash }
+            if ($hashGroup.Group.Count -eq 1) {
+                $lbDuplicates.Visibility = [System.Windows.Visibility]::Collapsed
+            } else {
+                $lbDuplicates.Visibility = [System.Windows.Visibility]::Visible
+                $lbDuplicates.ItemsSource = $hashGroup.Group | ForEach-Object { $_.Path }
+            }
+            $itemDetailsPanel.Visibility = [System.Windows.Visibility]::Visible
+        } else {
+            $preview.Source = $null
+            $itemDetailsPanel.Visibility = [System.Windows.Visibility]::Collapsed
+        }
+    }
 })
 
 ([System.Windows.Controls.MenuItem]$window.FindName("menuScanDir")).add_Click({
