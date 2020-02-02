@@ -24,6 +24,12 @@ $window = New-UIElement $mediaListViewXaml
 [System.Windows.Controls.MediaElement]$preview = $window.FindName("preview")
 [System.Windows.Controls.ListBox]$lbDuplicates = $window.FindName("lbDuplicates")
 
+$CURSOR_WAIT = [System.Windows.Input.Cursors]::Wait
+$CURSOR_ARROW = [System.Windows.Input.Cursors]::Arrow
+$VISIBILITY_VISIBLE = [System.Windows.Visibility]::Visible
+$VISIBILITY_HIDDEN = [System.Windows.Visibility]::Hidden
+$VISIBILITY_COLLAPSED = [System.Windows.Visibility]::Collapsed
+
 function Invoke-UI {
     [CmdletBinding()]
     param (
@@ -107,13 +113,19 @@ class MediaCollection {
     }
 
     [void] Import([string] $Path) {
-        Invoke-UI { $statusText.Text = "Reading and converting $Path..." }
+        Invoke-UI {
+            $window.Cursor = $CURSOR_WAIT
+            $statusText.Text = "Reading and converting $Path..." 
+        }
+
         $importedItems = Get-Content $Path | ConvertFrom-Json
 
         Invoke-UI { $statusText.Text = "Normalizing items..." }
         $normalizedItems = $importedItems.ForEach({[MediaItem]$_})
 
         $this.AddItems($normalizedItems)
+
+        Invoke-UI { $window.Cursor = $CURSOR_ARROW }
     }
 
     [void] Export([string] $Path) {
@@ -121,7 +133,41 @@ class MediaCollection {
     }
 
     [void] AddFolder([string] $Path) {
-
+        Invoke-UI {
+            $window.Cursor = $CURSOR_WAIT
+            $statusText.Text = "Scanning directory for media files..."
+        }
+    
+        [string[]]$mediaFiles = Get-MediaFiles $Path
+    
+        Invoke-UI {
+            $statusProgress.Visibility = $VISIBILITY_VISIBLE
+            $statusProgress.Maximum = $mediaFiles.Length
+        }
+    
+        $items = [System.Collections.ArrayList]::new()
+        for ($i = 0; $i -lt $mediaFiles.Length; $i++) {
+            Invoke-UI {
+                $statusProgress.Value = $i;
+                $statusText.Text = "Collecting metadata for {0}..." -f $mediaFiles[$i]
+            }
+    
+            $item = Get-Item $(Join-Path $Path $mediaFiles[$i])
+            $hash = Get-FileHash $item.FullName
+            $items.Add(
+                [MediaItem](@{
+                    Directory=$item.DirectoryName
+                    FileName=$item.Name
+                    Hash=$hash.Hash
+                } + $(Get-AllDates $item.FullName))
+            )
+        }
+        $this.AddItems($items)
+        
+        Invoke-UI {
+            $statusProgress.Visibility = $VISIBILITY_HIDDEN
+            $window.Cursor = $CURSOR_ARROW
+        }
     }
 
     [void] RemoveItem([MediaItem] $Item, [boolean] $RemoveDuplicates = $false) {
@@ -131,6 +177,7 @@ class MediaCollection {
         } else {
             $this.mediaItems.Remove($Item)
         }
+        $this.UpdateMetadata()
     }
 }
 
@@ -182,15 +229,15 @@ $lvMediaFiles.add_SelectionChanged({
             $preview.Source = $imageUri
             $hashGroup = $mediaCollection.hashGroups | Where-Object { $_.Name -eq $lvMediaFiles.SelectedItem.Hash }
             if ($hashGroup.Group.Count -eq 1) {
-                $lbDuplicates.Visibility = [System.Windows.Visibility]::Collapsed
+                $lbDuplicates.Visibility = $VISIBILITY_COLLAPSED
             } else {
-                $lbDuplicates.Visibility = [System.Windows.Visibility]::Visible
+                $lbDuplicates.Visibility = $VISIBILITY_VISIBLE
                 $lbDuplicates.ItemsSource = $hashGroup.Group | ForEach-Object { $_.Path }
             }
-            $itemDetailsPanel.Visibility = [System.Windows.Visibility]::Visible
+            $itemDetailsPanel.Visibility = $VISIBILITY_VISIBLE
         } else {
             $preview.Source = $null
-            $itemDetailsPanel.Visibility = [System.Windows.Visibility]::Collapsed
+            $itemDetailsPanel.Visibility = $VISIBILITY_COLLAPSED
         }
     }
 })
@@ -202,45 +249,15 @@ $lvMediaFiles.add_SelectionChanged({
     }
     
     Invoke-UI {
-        $window.Cursor = [System.Windows.Input.Cursors]::Wait
-        $statusText.Text = "Scanning directory for media files..."
         $lvMediaFolders.ItemsSource = @()
         $lvMediaFolders.IsEnabled = $false
         $lvMediaFiles.ItemsSource = @()
         $lvMediaFiles.IsEnabled = $false
     }
 
-    [string[]]$mediaFiles = Get-MediaFiles $targetFolder
-
-    Invoke-UI {
-        $statusProgress.Visibility = [System.Windows.Visibility]::Visible
-        $statusProgress.Maximum = $mediaFiles.Length
-    }
-
-    $items = [System.Collections.ArrayList]::new()
-    for ($i = 0; $i -lt $mediaFiles.Length; $i++) {
-        Invoke-UI {
-            $statusProgress.Value = $i;
-            $statusText.Text = "Collecting metadata for {0}..." -f $mediaFiles[$i]
-        }
-
-        $item = Get-Item $(Join-Path $targetFolder $mediaFiles[$i])
-        $hash = Get-FileHash $item.FullName
-        $items.Add(
-            [MediaItem](@{
-                Directory=$item.DirectoryName
-                FileName=$item.Name
-                Hash=$hash.Hash
-            } + $(Get-AllDates $item.FullName))
-        )
-    }
-    $mediaCollection.AddItems($items)
+    $mediaCollection.AddFolder($targetFolder)
     
-    Invoke-UI {
-        Update-MediaItems
-        $statusProgress.Visibility = [System.Windows.Visibility]::Hidden
-        $window.Cursor = [System.Windows.Input.Cursors]::Arrow
-    }
+    Invoke-UI { Update-MediaItems }
 });
 
 ([System.Windows.Controls.MenuItem]$window.FindName("menuExport")).add_Click({
@@ -256,8 +273,6 @@ $lvMediaFiles.add_SelectionChanged({
     $openDialog.Filter = "JSON file (*.json)|*.json"
     if ($openDialog.ShowDialog() -eq $true) {
         Invoke-UI {
-            $window.Cursor = [System.Windows.Input.Cursors]::Wait
-            $statusText.Text = "Importing media list..."
             $lvMediaFolders.ItemsSource = @()
             $lvMediaFolders.IsEnabled = $false
             $lvMediaFiles.ItemsSource = @()
@@ -266,10 +281,7 @@ $lvMediaFiles.add_SelectionChanged({
 
         $mediaCollection.Import($openDialog.FileName)
     
-        Invoke-UI {
-            Update-MediaItems
-            $window.Cursor = [System.Windows.Input.Cursors]::Arrow
-        }
+        Invoke-UI { Update-MediaItems }
     }
 })
 
