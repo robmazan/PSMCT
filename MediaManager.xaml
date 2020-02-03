@@ -6,9 +6,11 @@
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
+                <MenuItem Header="_New" Command="ApplicationCommands.New"/>
+                <MenuItem Header="_Open" Command="ApplicationCommands.Open"/>
+                <MenuItem Header="_Save" Command="ApplicationCommands.Save"/>
+                <MenuItem Header="Save _as" Command="ApplicationCommands.SaveAs"/>
                 <MenuItem x:Name="menuScanDir" Header="_Add folder to media list..." />
-                <MenuItem x:Name="menuImport" Header="_Import media list..." />
-                <MenuItem x:Name="menuExport" Header="_Export media list..." />
             </MenuItem>
         </Menu>
 
@@ -76,6 +78,8 @@
                     <MenuItem x:Name="menuUseFileLastWrite" Header="Use File Last Write Time" />
                     <Separator />
                     <MenuItem x:Name="menuUseCustomDate" Header="Enter custom date..." />
+                    <Separator />
+                    <MenuItem x:Name="menuOpenMedia" Header="Open media" />
                 </ContextMenu>
             </ListView.ContextMenu>
         </ListView>

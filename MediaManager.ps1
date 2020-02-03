@@ -57,6 +57,7 @@ class MediaCollection {
     [System.Collections.ArrayList] $mediaItems
     [array]$hashGroups
     [array]$folderGroups
+    [string]$fileName
 
     MediaCollection() {
         $this.mediaItems = [System.Collections.ArrayList]::new()
@@ -77,6 +78,11 @@ class MediaCollection {
     }
 
     [void] UpdateMetadata() {
+        if ($this.mediaItems.Count -eq 0) {
+            $this.hashGroups = @()
+            $this.folderGroups = @()
+            return
+        }
         Invoke-UI { $statusText.Text = "Calculating folder groups..." }
         
         $this.folderGroups = $this.mediaItems | Group-Object "Directory" | Sort-Object "Name"
@@ -113,6 +119,7 @@ class MediaCollection {
     }
 
     [void] Import([string] $Path) {
+        $this.fileName = $Path
         Invoke-UI {
             $window.Cursor = $CURSOR_WAIT
             $statusText.Text = "Reading and converting $Path..." 
@@ -123,12 +130,13 @@ class MediaCollection {
         Invoke-UI { $statusText.Text = "Normalizing items..." }
         $normalizedItems = $importedItems.ForEach({[MediaItem]$_})
 
-        $this.AddItems($normalizedItems)
+        $this.SetItems($normalizedItems)
 
         Invoke-UI { $window.Cursor = $CURSOR_ARROW }
     }
 
     [void] Export([string] $Path) {
+        $this.fileName = $Path
         $this.mediaItems | ConvertTo-Json > $Path
     }
 
@@ -294,31 +302,6 @@ $lvMediaFiles.add_SelectionChanged({
     Invoke-UI { Update-MediaItems }
 });
 
-([System.Windows.Controls.MenuItem]$window.FindName("menuExport")).add_Click({
-    $saveDialog = [Microsoft.Win32.SaveFileDialog]::new()
-    $saveDialog.Filter = "JSON file (*.json)|*.json"
-    if ($saveDialog.ShowDialog() -eq $true) {
-        $mediaCollection.Export($saveDialog.FileName)
-    }
-})
-
-([System.Windows.Controls.MenuItem]$window.FindName("menuImport")).add_Click({
-    $openDialog = [Microsoft.Win32.OpenFileDialog]::new()
-    $openDialog.Filter = "JSON file (*.json)|*.json"
-    if ($openDialog.ShowDialog() -eq $true) {
-        Invoke-UI {
-            $lvMediaFolders.ItemsSource = @()
-            $lvMediaFolders.IsEnabled = $false
-            $lvMediaFiles.ItemsSource = @()
-            $lvMediaFiles.IsEnabled = $false
-        }
-
-        $mediaCollection.Import($openDialog.FileName)
-    
-        Invoke-UI { Update-MediaItems }
-    }
-})
-
 $lvMediaFolders.add_SelectionChanged({
     $selectedMediaItems = $lvMediaFolders.SelectedItems | Select-Object -ExpandProperty "Group"
     if ($selectedMediaItems -isnot [System.Collections.IEnumerable]) {
@@ -418,4 +401,89 @@ $dateSourceMap.Keys | ForEach-Object {
     });
 }
 
+$window.CommandBindings.Add(
+    [System.Windows.Input.CommandBinding]::new(
+        [System.Windows.Input.ApplicationCommands]::New, 
+        {
+            $mediaCollection.SetItems(@())
+            Update-MediaItems
+        },
+        {
+            $_.CanExecute = $($mediaCollection.mediaItems.Count -gt 0)
+        }
+    )
+)
+
+$window.CommandBindings.Add(
+    [System.Windows.Input.CommandBinding]::new(
+        [System.Windows.Input.ApplicationCommands]::Open, 
+        {
+            $openDialog = [Microsoft.Win32.OpenFileDialog]::new()
+            $openDialog.Filter = "JSON file (*.json)|*.json"
+            if ($openDialog.ShowDialog() -eq $true) {
+                Invoke-UI {
+                    $lvMediaFolders.ItemsSource = @()
+                    $lvMediaFolders.IsEnabled = $false
+                    $lvMediaFiles.ItemsSource = @()
+                    $lvMediaFiles.IsEnabled = $false
+                }
+        
+                $mediaCollection.Import($openDialog.FileName)
+            
+                Invoke-UI { Update-MediaItems }
+            }
+        }
+    )
+)
+
+$window.CommandBindings.Add(
+    [System.Windows.Input.CommandBinding]::new(
+        [System.Windows.Input.ApplicationCommands]::SaveAs, 
+        {
+            $saveDialog = [Microsoft.Win32.SaveFileDialog]::new()
+            $saveDialog.Filter = "JSON file (*.json)|*.json"
+            if ($saveDialog.ShowDialog() -eq $true) {
+                $mediaCollection.Export($saveDialog.FileName)
+            }
+        },
+        {
+            $_.CanExecute = $($mediaCollection.mediaItems.Count -gt 0)
+        }
+    )
+)
+
+$window.CommandBindings.Add(
+    [System.Windows.Input.CommandBinding]::new(
+        [System.Windows.Input.ApplicationCommands]::Save, 
+        {
+            $fileName = $mediaCollection.fileName
+            if ($null -eq $fileName) {
+                $saveDialog = [Microsoft.Win32.SaveFileDialog]::new()
+                $saveDialog.Filter = "JSON file (*.json)|*.json"
+                if ($saveDialog.ShowDialog() -eq $false) {
+                    return
+                }
+            }
+            $mediaCollection.Export($fileName)
+        },
+        {
+            $_.CanExecute = $($mediaCollection.mediaItems.Count -gt 0)
+        }
+    )
+)
+
+$OpenMediaCmd = [System.Windows.Input.RoutedUICommand]::new("Open Media", "openMedia", $window.GetType())
+$window.CommandBindings.Add(
+    [System.Windows.Input.CommandBinding]::new(
+        $OpenMediaCmd, 
+        {
+            Invoke-Item $lvMediaFiles.SelectedItem.Path
+        }
+    )
+)
+$menuOpenMedia = [System.Windows.Controls.MenuItem]$window.FindName("menuOpenMedia")
+$menuOpenMedia.Command = $OpenMediaCmd
+
 $window.ShowDialog() | Out-Null
+
+# TODO: Context menu with commands and CanExecute
