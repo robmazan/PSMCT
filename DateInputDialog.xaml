@@ -15,7 +15,10 @@
         </Grid.RowDefinitions>
 
         <Label Grid.Column="1">Enter custom date:</Label>
-        <DatePicker Name="datePicker" Grid.Column="1" Grid.Row="1" MinWidth="250"></DatePicker>
+        <WrapPanel Grid.Column="1" Grid.Row="1" Margin="5,0,0,0">
+            <DatePicker Name="datePicker" MinWidth="250"></DatePicker>
+            <TextBox Name="timeInput" InputScope="Time" Width="80" ToolTip="Format: HH:mm:ss - e.g.: 16:48:33"></TextBox>
+        </WrapPanel>
 
         <WrapPanel Grid.Row="2" Grid.ColumnSpan="2" HorizontalAlignment="Right" Margin="0,15,0,0">
             <Button IsDefault="True" Name="btnDialogOk" MinWidth="60" Margin="0,0,10,0">_Ok</Button>

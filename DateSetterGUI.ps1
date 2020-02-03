@@ -195,15 +195,37 @@ class MediaCollection {
 }
 
 function Get-DateFromDialog {
+    [CmdletBinding()]
+    param (
+        [Parameter()][datetime] $InitialValue
+    )
+
     [XML]$dateInputDialogXaml = Get-Content $(Join-Path $PSScriptRoot "DateInputDialog.xaml")
     [System.Windows.Window]$dateInputDialog = New-UIElement $dateInputDialogXaml
+    
     [System.Windows.Controls.Button]$btnDialogOk = $dateInputDialog.FindName("btnDialogOk");
+    [System.Windows.Controls.DatePicker]$datePicker = $dateInputDialog.FindName("datePicker")
+    [System.Windows.Controls.TextBox]$timeInput = $dateInputDialog.FindName("timeInput")
+
+    if ($InitialValue) {
+        $datePicker.SelectedDate = $InitialValue
+        $timeInput.Text = $InitialValue.ToString("HH:mm:ss")
+    }
+
     $btnDialogOk.add_Click({
         $dateInputDialog.DialogResult = $true;
     });
+
     if ($dateInputDialog.ShowDialog()) {
-        [System.Windows.Controls.DatePicker]$datePicker = $dateInputDialog.FindName("datePicker")
-        return $datePicker.SelectedDate
+        # TODO: better time input validation
+        if ($timeInput.Text.Length -eq 8) {
+            $time = $timeInput.Text
+        } else {
+            $time = "00:00:00"
+        }
+        $datetimeStr = [string]::Join(" ", @($datePicker.SelectedDate.ToString("yyyy-MM-dd"), $time))
+        $result = [datetime]::ParseExact($datetimeStr, "yyyy-MM-dd HH:mm:ss", $null)
+        return $result
     }
 }
 
@@ -361,7 +383,12 @@ $dateSourceMap.Keys | ForEach-Object {
         $dateSource = $dateSourceMap[$menuItem.Name]
 
         if ($null -eq $dateSource) {
-            $dateFromInput = Get-DateFromDialog
+            $dateTaken = $lvMediaFiles.SelectedItem.DateTaken
+            if ($null -ne $dateTaken) {
+                $dateFromInput = Get-DateFromDialog -InitialValue $dateTaken
+            } else {
+                $dateFromInput = Get-DateFromDialog
+            }
         }
         $datesToSet = $lvMediaFiles.SelectedItems | ForEach-Object {
             if ($null -eq $dateSource) {
