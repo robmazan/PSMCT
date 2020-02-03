@@ -13,7 +13,7 @@ function New-UIElement {
     return [Windows.Markup.XamlReader]::Load($reader)
 }
 
-$window = New-UIElement "DateSetterWindow.xaml"
+$window = New-UIElement "MediaManager.xaml"
 
 [System.Windows.Controls.ListView]$lvMediaFolders = $window.FindName("lvMediaFolders")
 [System.Windows.Controls.ListView]$lvMediaFiles = $window.FindName("lvMediaFiles")
