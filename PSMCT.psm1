@@ -119,27 +119,36 @@ function Get-DateTaken {
 
 Adds the date taken EXIF data to an image file
 #>
-function Add-DateTaken {
+function Set-DateTaken {
     param (
         # Source image file
         [Parameter(Mandatory=$true)][string] $Path,
-        # Destination file
-        # Cannot be the same as the source file as for some funny
-        # reason that's causing deadlock...
-        [Parameter(Mandatory=$true)][string] $Destination,
         # The DateTime to set as "Date Taken"
         [Parameter(Mandatory=$true)][datetime] $DateTime
     )
-
+    
     [System.Drawing.Image] $image = [System.Drawing.Image]::FromFile($Path)
     $exifDateProp = $image.GetPropertyItem(0x9003)
     $dateStr = $DateTime.ToString('yyyy:MM:dd HH:mm:ss')
-
+    
     $exifDateProp.Value = $dateStr.ToCharArray()
     $image.SetPropertyItem($exifDateProp)
-
-    $image.Save($Destination)
+    
+    $resultStream = [System.IO.MemoryStream]::new()
+    # Cannot save directly to $image, first it has to be disposed, so saving contents 
+    # to a memory stream, disposing, and writing from the memory stream
+    $image.Save($resultStream, $image.RawFormat)
     $image.Dispose()
+
+    $fileStream = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Create)
+    $resultStream.WriteTo($fileStream)
+
+    $fileStream.Flush()
+    $fileStream.Close()
+    $fileStream.Dispose()
+
+    $resultStream.Close()
+    $resultStream.Dispose()
 }
 
 enum GoogleImageDateField {
@@ -345,5 +354,5 @@ Export-ModuleMember -Function Get-FileDetails
 Export-ModuleMember -Function Add-Media
 Export-ModuleMember -Function Add-BulkMedia
 Export-ModuleMember -Function Get-GoogleDate
-Export-ModuleMember -Function Add-DateTaken
+Export-ModuleMember -Function Set-DateTaken
 Export-ModuleMember -Function Get-AllDates

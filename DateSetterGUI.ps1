@@ -170,7 +170,7 @@ class MediaCollection {
         }
     }
 
-    [void] RemoveItem([MediaItem] $Item, [boolean] $RemoveDuplicates = $false) {
+    [void] RemoveItem([MediaItem] $Item, [boolean] $RemoveDuplicates) {
         if ($RemoveDuplicates) {
             $hashGroup = $($this.hashGroups | Where-Object { $_.Name -eq $Item.Hash}).Group
             $hashGroup | ForEach-Object { $this.mediaItems.Remove($_) }
@@ -178,6 +178,19 @@ class MediaCollection {
             $this.mediaItems.Remove($Item)
         }
         $this.UpdateMetadata()
+    }
+
+    [void] SetItemDate([MediaItem] $Item, [datetime] $DateTime , [boolean] $SetDuplicates) {
+        if ($SetDuplicates) {
+            $hashGroup = $($this.hashGroups | Where-Object { $_.Name -eq $Item.Hash}).Group
+            $hashGroup | ForEach-Object {
+                $_.DateTaken = $DateTime
+                Set-DateTaken -Path $_.Path -DateTime $DateTime
+            }
+        } else {
+            $Item.DateTaken = $DateTime
+            Set-DateTaken -Path $_.Path -DateTime $DateTime
+        }
     }
 }
 
@@ -362,12 +375,20 @@ $dateSourceMap.Keys | ForEach-Object {
                 }
             }
             [PSCustomObject]@{
-                Path = $_.Path
+                Item = $_
                 Date = $dateToSet
             }
         }
-        $datesToSet | ogv
-        # TODO: update for all hashes
+
+        $datesToSet | ForEach-Object {
+            if ($null -ne $_.Date) {
+                $mediaCollection.SetItemDate($_.Item, $_.Date, $true)
+            }
+        }
+        Invoke-UI { 
+            [System.ComponentModel.ICollectionView]$cvMediaFiles = [System.Windows.Data.CollectionViewSource]::GetDefaultView($lvMediaFiles.ItemsSource)
+            $cvMediaFiles.Refresh()
+         }
     });
 }
 
