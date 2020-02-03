@@ -6,14 +6,14 @@ function New-UIElement {
     [CmdletBinding()]
     [OutputType([System.Windows.UIElement])]
     param (
-        [Parameter(Mandatory=$true)][XML]$XAML
+        [Parameter(Mandatory=$true)][string]$XAMLFileName
     )
+    [XML]$XAML = Get-Content $(Join-Path $PSScriptRoot $XAMLFileName)
     $reader = New-Object System.Xml.XmlNodeReader $XAML
     return [Windows.Markup.XamlReader]::Load($reader)
 }
 
-[XML]$mediaListViewXaml = Get-Content $(Join-Path $PSScriptRoot "DateSetterWindow.xaml")
-$window = New-UIElement $mediaListViewXaml
+$window = New-UIElement "DateSetterWindow.xaml"
 
 [System.Windows.Controls.ListView]$lvMediaFolders = $window.FindName("lvMediaFolders")
 [System.Windows.Controls.ListView]$lvMediaFiles = $window.FindName("lvMediaFiles")
@@ -200,8 +200,7 @@ function Get-DateFromDialog {
         [Parameter()][datetime] $InitialValue
     )
 
-    [XML]$dateInputDialogXaml = Get-Content $(Join-Path $PSScriptRoot "DateInputDialog.xaml")
-    [System.Windows.Window]$dateInputDialog = New-UIElement $dateInputDialogXaml
+    [System.Windows.Window]$dateInputDialog = New-UIElement "DateInputDialog.xaml"
     
     [System.Windows.Controls.Button]$btnDialogOk = $dateInputDialog.FindName("btnDialogOk");
     [System.Windows.Controls.DatePicker]$datePicker = $dateInputDialog.FindName("datePicker")
