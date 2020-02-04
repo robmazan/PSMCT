@@ -8,8 +8,8 @@ function New-UIElement {
     param (
         [Parameter(Mandatory=$true)][string]$XAMLFileName
     )
-    [XML]$XAML = Get-Content $(Join-Path $PSScriptRoot $XAMLFileName)
-    $reader = New-Object System.Xml.XmlNodeReader $XAML
+    [XML]$xaml = Get-Content $(Join-Path $PSScriptRoot $XAMLFileName)
+    $reader = New-Object System.Xml.XmlNodeReader $xaml
     return [Windows.Markup.XamlReader]::Load($reader)
 }
 
@@ -24,7 +24,6 @@ $window = New-UIElement "MediaManager.xaml"
 [System.Windows.Controls.MediaElement] $preview = $window.FindName("preview")
 [System.Windows.Controls.ListBox] $lbDuplicates = $window.FindName("lbDuplicates")
 [System.Windows.Controls.MenuItem] $menuScanDir = $window.FindName("menuScanDir")
-[System.Windows.Controls.MenuItem] $menuOpenMedia = $window.FindName("menuOpenMedia")
 [System.Windows.Controls.MenuItem] $menuRemoveItem = $window.FindName("menuRemoveItem")
 [System.Windows.Controls.MenuItem] $menuRemoveItemAndDups = $window.FindName("menuRemoveItemAndDups")
 [System.Windows.Controls.MenuItem] $menuUsePhotoTaken = $window.FindName("menuUsePhotoTaken")
@@ -64,23 +63,23 @@ class MediaItem {
 }
 
 class MediaCollection {
-    [System.Collections.ArrayList] $mediaItems
-    [array]$hashGroups
-    [array]$folderGroups
-    [string]$fileName
+    [System.Collections.ArrayList] $MediaItems
+    [array] $HashGroups
+    [array] $FolderGroups
+    [string] $FileName
 
     MediaCollection() {
-        $this.mediaItems = [System.Collections.ArrayList]::new()
+        $this.MediaItems = [System.Collections.ArrayList]::new()
     }
 
     MediaCollection([MediaCollection] $otherCollection) {
-        $this.mediaItems = [System.Collections.ArrayList]::new($otherCollection.mediaItems)
+        $this.MediaItems = [System.Collections.ArrayList]::new($otherCollection.MediaItems)
 
-        $this.hashGroups = [array]::CreateInstance([System.Object], $otherCollection.hashGroups.Count)
-        [array]::Copy($otherCollection.hashGroups, $this.hashGroups, $otherCollection.hashGroups.Count)
+        $this.HashGroups = [array]::CreateInstance([System.Object], $otherCollection.HashGroups.Count)
+        [array]::Copy($otherCollection.HashGroups, $this.HashGroups, $otherCollection.HashGroups.Count)
 
-        $this.folderGroups = [array]::CreateInstance([System.Object], $otherCollection.folderGroups.Count)
-        [array]::Copy($otherCollection.folderGroups, $this.folderGroups, $otherCollection.folderGroups.Count)
+        $this.FolderGroups = [array]::CreateInstance([System.Object], $otherCollection.FolderGroups.Count)
+        [array]::Copy($otherCollection.FolderGroups, $this.FolderGroups, $otherCollection.FolderGroups.Count)
     }
 
     MediaCollection([MediaItem[]] $mediaItems) {
@@ -88,23 +87,23 @@ class MediaCollection {
     }
 
     [void] UpdateMetadata() {
-        if ($this.mediaItems.Count -eq 0) {
-            $this.hashGroups = @()
-            $this.folderGroups = @()
+        if ($this.MediaItems.Count -eq 0) {
+            $this.HashGroups = @()
+            $this.FolderGroups = @()
             return
         }
         Invoke-UI { $statusText.Text = "Calculating folder groups..." }
         
-        $this.folderGroups = $this.mediaItems | Group-Object "Directory" | Sort-Object "Name"
-        if ($this.folderGroups -isnot [array]) {
-            $this.folderGroups = @($this.folderGroups)
+        $this.FolderGroups = $this.MediaItems | Group-Object "Directory" | Sort-Object "Name"
+        if ($this.FolderGroups -isnot [array]) {
+            $this.FolderGroups = @($this.FolderGroups)
         }
         
         Invoke-UI { $statusText.Text = "Calculating hash groups..." }
-        $this.hashGroups = $this.mediaItems | Group-Object "Hash"
+        $this.HashGroups = $this.MediaItems | Group-Object "Hash"
 
         Invoke-UI { $statusText.Text = "Calculating duplicates..." }
-        $this.hashGroups | ForEach-Object {
+        $this.HashGroups | ForEach-Object {
             $count = $_.Group.Count
             $_.Group | ForEach-Object {
                 $_.InstanceCount = $count
@@ -112,24 +111,24 @@ class MediaCollection {
         }
     }
     
-    [void] SetItems([MediaItem[]] $mediaItems) {
-        $this.mediaItems = [System.Collections.ArrayList]::new($mediaItems)
+    [void] SetItems([MediaItem[]] $MediaItems) {
+        $this.MediaItems = [System.Collections.ArrayList]::new($MediaItems)
         $this.UpdateMetadata()
     }
     
-    [void] AddItems([MediaItem[]] $mediaItems) {
-        $this.mediaItems.AddRange($mediaItems)
-        $uniqueItems = $this.mediaItems | Sort-Object "Path" -Unique
+    [void] AddItems([MediaItem[]] $MediaItems) {
+        $this.MediaItems.AddRange($MediaItems)
+        $uniqueItems = $this.MediaItems | Sort-Object "Path" -Unique
         if ($uniqueItems -isnot [array]) {
             $uniqueItems = @($uniqueItems)
         }
-        $this.mediaItems = $uniqueItems
+        $this.MediaItems = $uniqueItems
     
         $this.UpdateMetadata()
     }
 
     [void] Import([string] $Path) {
-        $this.fileName = $Path
+        $this.FileName = $Path
         Invoke-UI {
             $window.Cursor = $CURSOR_WAIT
             $statusText.Text = "Reading and converting $Path..." 
@@ -146,8 +145,8 @@ class MediaCollection {
     }
 
     [void] Export([string] $Path) {
-        $this.fileName = $Path
-        $this.mediaItems | ConvertTo-Json > $Path
+        $this.FileName = $Path
+        $this.MediaItems | ConvertTo-Json > $Path
     }
 
     [void] AddFolder([string] $Path) {
@@ -190,17 +189,17 @@ class MediaCollection {
 
     [void] RemoveItem([MediaItem] $Item, [boolean] $RemoveDuplicates) {
         if ($RemoveDuplicates) {
-            $hashGroup = $($this.hashGroups | Where-Object { $_.Name -eq $Item.Hash}).Group
-            $hashGroup | ForEach-Object { $this.mediaItems.Remove($_) }
+            $hashGroup = $($this.HashGroups | Where-Object { $_.Name -eq $Item.Hash}).Group
+            $hashGroup | ForEach-Object { $this.MediaItems.Remove($_) }
         } else {
-            $this.mediaItems.Remove($Item)
+            $this.MediaItems.Remove($Item)
         }
         $this.UpdateMetadata()
     }
 
     [void] SetItemDate([MediaItem] $Item, [datetime] $DateTime , [boolean] $SetDuplicates) {
         if ($SetDuplicates) {
-            $hashGroup = $($this.hashGroups | Where-Object { $_.Name -eq $Item.Hash}).Group
+            $hashGroup = $($this.HashGroups | Where-Object { $_.Name -eq $Item.Hash}).Group
             $hashGroup | ForEach-Object {
                 $_.DateTaken = $DateTime
                 Set-DateTaken -Path $_.Path -DateTime $DateTime
@@ -256,7 +255,7 @@ function Get-Folder {
 
 function Update-MediaItems {
     if ($btnMissingDate.IsChecked) {
-        $items = $mediaCollection.mediaItems | Where-Object { $null -eq $_.DateTaken }
+        $items = $mediaCollection.MediaItems | Where-Object { $null -eq $_.DateTaken }
         if ($items -is [array]) {
             $filteredCollection = [MediaCollection]::new($items)
         } else {
@@ -266,10 +265,10 @@ function Update-MediaItems {
         $filteredCollection = [MediaCollection]::new($mediaCollection)
     }
 
-    $lvMediaFolders.ItemsSource = $filteredCollection.folderGroups
+    $lvMediaFolders.ItemsSource = $filteredCollection.FolderGroups
     $lvMediaFolders.IsEnabled = $true
 
-    $statusText.Text = "{0} items displayed in {1} folders, {2} of them are unique" -f $filteredCollection.mediaItems.Count,$filteredCollection.folderGroups.Count,$filteredCollection.hashGroups.Count
+    $statusText.Text = "{0} items displayed in {1} folders, {2} of them are unique" -f $filteredCollection.MediaItems.Count,$filteredCollection.FolderGroups.Count,$filteredCollection.HashGroups.Count
 }
 
 $mediaCollection = [MediaCollection]::new()
@@ -285,7 +284,7 @@ $lvMediaFiles.add_SelectionChanged({
         if ($lvMediaFiles.SelectedItems.Count -eq 1) {
             $imageUri = [uri]::new($lvMediaFiles.SelectedItem.Path)
             $preview.Source = $imageUri
-            $hashGroup = $mediaCollection.hashGroups | Where-Object { $_.Name -eq $lvMediaFiles.SelectedItem.Hash }
+            $hashGroup = $mediaCollection.HashGroups | Where-Object { $_.Name -eq $lvMediaFiles.SelectedItem.Hash }
             if ($hashGroup.Group.Count -eq 1) {
                 $lbDuplicates.Visibility = $VISIBILITY_COLLAPSED
             } else {
@@ -327,7 +326,7 @@ $window.CommandBindings.Add(
             Update-MediaItems
         },
         {
-            $_.CanExecute = $($mediaCollection.mediaItems.Count -gt 0)
+            $_.CanExecute = $($mediaCollection.MediaItems.Count -gt 0)
         }
     )
 ) | Out-Null
@@ -364,7 +363,7 @@ $window.CommandBindings.Add(
                 $mediaCollection.Export($saveDialog.FileName)
             }
         },
-        { $_.CanExecute = $(($mediaCollection.mediaItems.Count -gt 0) -and ($null -ne $mediaCollection.fileName)) }
+        { $_.CanExecute = $(($mediaCollection.MediaItems.Count -gt 0) -and ($null -ne $mediaCollection.FileName)) }
     )
 ) | Out-Null
 
@@ -372,7 +371,7 @@ $window.CommandBindings.Add(
     [System.Windows.Input.CommandBinding]::new(
         [System.Windows.Input.ApplicationCommands]::Save, 
         {
-            $fileName = $mediaCollection.fileName
+            $fileName = $mediaCollection.FileName
             if ($null -eq $fileName) {
                 $saveDialog = [Microsoft.Win32.SaveFileDialog]::new()
                 $saveDialog.Filter = "JSON file (*.json)|*.json"
@@ -383,7 +382,7 @@ $window.CommandBindings.Add(
             }
             $mediaCollection.Export($fileName)
         },
-        { $_.CanExecute = $($mediaCollection.mediaItems.Count -gt 0) }
+        { $_.CanExecute = $($mediaCollection.MediaItems.Count -gt 0) }
     )
 ) | Out-Null
 
@@ -425,10 +424,8 @@ $OpenMediaCmd = [System.Windows.Input.RoutedUICommand]::new(
 )
 $window.CommandBindings.Add(
     [System.Windows.Input.CommandBinding]::new(
-        $OpenMediaCmd, 
-        {
-            Invoke-Item $lvMediaFiles.SelectedItem.Path
-        },
+        $OpenMediaCmd,
+        { Invoke-Item $lvMediaFiles.SelectedItem.Path },
         { $_.CanExecute = $($null -ne $lvMediaFiles.SelectedItem) }
     )
 ) | Out-Null
@@ -513,10 +510,10 @@ $window.CommandBindings.Add(
                     $mediaCollection.SetItemDate($_.Item, $_.Date, $true)
                 }
             }
-            if ($null -ne $mediaCollection.fileName) {
+            if ($null -ne $mediaCollection.FileName) {
                 # Make sure that the changed dates are saved to the collection
                 # otherwise it could contain invalid data on reload
-                $mediaCollection.Export($mediaCollection.fileName)
+                $mediaCollection.Export($mediaCollection.FileName)
             }
             Invoke-UI { 
                 [System.ComponentModel.ICollectionView]$cvMediaFiles = [System.Windows.Data.CollectionViewSource]::GetDefaultView($lvMediaFiles.ItemsSource)
@@ -548,7 +545,7 @@ $window.CommandBindings.Add(
         {
             Invoke-UI { Update-MediaItems }
         },
-        { $_.CanExecute = $($mediaCollection.mediaItems.Count -gt 0) }
+        { $_.CanExecute = $($mediaCollection.MediaItems.Count -gt 0) }
     )
 ) | Out-Null
 $menuOpenMedia.Command = $RefreshCmd

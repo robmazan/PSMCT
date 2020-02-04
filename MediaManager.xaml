@@ -78,8 +78,6 @@
                     <MenuItem x:Name="menuUseFileLastWrite" Header="Use File Last Write Time" />
                     <Separator />
                     <MenuItem x:Name="menuUseCustomDate" Header="Enter custom date..." />
-                    <Separator />
-                    <MenuItem x:Name="menuOpenMedia" Header="Open media" />
                 </ContextMenu>
             </ListView.ContextMenu>
         </ListView>
