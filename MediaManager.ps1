@@ -15,14 +15,24 @@ function New-UIElement {
 
 $window = New-UIElement "MediaManager.xaml"
 
-[System.Windows.Controls.ListView]$lvMediaFolders = $window.FindName("lvMediaFolders")
-[System.Windows.Controls.ListView]$lvMediaFiles = $window.FindName("lvMediaFiles")
-[System.Windows.Controls.TextBlock]$statusText = $window.FindName("statusText")
-[System.Windows.Controls.ProgressBar]$statusProgress = $window.FindName("statusProgress")
-[System.Windows.Controls.Primitives.ToggleButton]$btnMissingDate = $window.FindName("btnMissingDate")
-[System.Windows.Controls.StackPanel]$itemDetailsPanel = $window.FindName("itemDetailsPanel")
-[System.Windows.Controls.MediaElement]$preview = $window.FindName("preview")
-[System.Windows.Controls.ListBox]$lbDuplicates = $window.FindName("lbDuplicates")
+[System.Windows.Controls.ListView] $lvMediaFolders = $window.FindName("lvMediaFolders")
+[System.Windows.Controls.ListView] $lvMediaFiles = $window.FindName("lvMediaFiles")
+[System.Windows.Controls.TextBlock] $statusText = $window.FindName("statusText")
+[System.Windows.Controls.ProgressBar] $statusProgress = $window.FindName("statusProgress")
+[System.Windows.Controls.Primitives.ToggleButton] $btnMissingDate = $window.FindName("btnMissingDate")
+[System.Windows.Controls.StackPanel] $itemDetailsPanel = $window.FindName("itemDetailsPanel")
+[System.Windows.Controls.MediaElement] $preview = $window.FindName("preview")
+[System.Windows.Controls.ListBox] $lbDuplicates = $window.FindName("lbDuplicates")
+[System.Windows.Controls.MenuItem] $menuScanDir = $window.FindName("menuScanDir")
+[System.Windows.Controls.MenuItem] $menuOpenMedia = $window.FindName("menuOpenMedia")
+[System.Windows.Controls.MenuItem] $menuRemoveItem = $window.FindName("menuRemoveItem")
+[System.Windows.Controls.MenuItem] $menuRemoveItemAndDups = $window.FindName("menuRemoveItemAndDups")
+[System.Windows.Controls.MenuItem] $menuUsePhotoTaken = $window.FindName("menuUsePhotoTaken")
+[System.Windows.Controls.MenuItem] $menuUseGoogleCreation = $window.FindName("menuUseGoogleCreation")
+[System.Windows.Controls.MenuItem] $menuUseGoogleModification = $window.FindName("menuUseGoogleModification")
+[System.Windows.Controls.MenuItem] $menuUseFileCreation = $window.FindName("menuUseFileCreation")
+[System.Windows.Controls.MenuItem] $menuUseFileLastWrite = $window.FindName("menuUseFileLastWrite")
+[System.Windows.Controls.MenuItem] $menuUseCustomDate = $window.FindName("menuUseCustomDate")
 
 $CURSOR_WAIT = [System.Windows.Input.Cursors]::Wait
 $CURSOR_ARROW = [System.Windows.Input.Cursors]::Arrow
@@ -247,7 +257,11 @@ function Get-Folder {
 function Update-MediaItems {
     if ($btnMissingDate.IsChecked) {
         $items = $mediaCollection.mediaItems | Where-Object { $null -eq $_.DateTaken }
-        $filteredCollection = [MediaCollection]::new($items)
+        if ($items -is [array]) {
+            $filteredCollection = [MediaCollection]::new($items)
+        } else {
+            $filteredCollection = [MediaCollection]::new()
+        }
     } else {
         $filteredCollection = [MediaCollection]::new($mediaCollection)
     }
@@ -261,7 +275,9 @@ function Update-MediaItems {
 $mediaCollection = [MediaCollection]::new()
 
 $lvMediaFiles.add_MouseDoubleClick({
-    Invoke-Item $lvMediaFiles.SelectedItem.Path
+    if ($OpenMediaCmd.CanExecute($null, $lvMediaFiles)) {
+        $OpenMediaCmd.Execute($null, $lvMediaFiles)
+    }
 })
 
 $lvMediaFiles.add_SelectionChanged({
@@ -284,24 +300,6 @@ $lvMediaFiles.add_SelectionChanged({
     }
 })
 
-([System.Windows.Controls.MenuItem]$window.FindName("menuScanDir")).add_Click({
-    $targetFolder = Get-Folder
-    if ($null -eq $targetFolder) {
-        return
-    }
-    
-    Invoke-UI {
-        $lvMediaFolders.ItemsSource = @()
-        $lvMediaFolders.IsEnabled = $false
-        $lvMediaFiles.ItemsSource = @()
-        $lvMediaFiles.IsEnabled = $false
-    }
-
-    $mediaCollection.AddFolder($targetFolder)
-    
-    Invoke-UI { Update-MediaItems }
-});
-
 $lvMediaFolders.add_SelectionChanged({
     $selectedMediaItems = $lvMediaFolders.SelectedItems | Select-Object -ExpandProperty "Group"
     if ($selectedMediaItems -isnot [System.Collections.IEnumerable]) {
@@ -315,91 +313,11 @@ $lvMediaFolders.add_SelectionChanged({
     $lvMediaFiles.IsEnabled = $true
 })
 
-$removeHandler = {
-    $menuItem = [System.Windows.Controls.MenuItem]$this
-    $removeDuplicates = $menuItem.Header.ToString().Contains("duplicates")
-
-    if ($lvMediaFiles.SelectedItems.Count -eq 1) {
-        $message = "Do you want to remove {0} from the media list?"  -f $lvMediaFiles.SelectedItems[0].FileName
-        $message += [System.Environment]::NewLine + "(this doesn't affect the original file)"
-    } else {
-        $message = "Do you want to remove these {0} items from the media list?"  -f $lvMediaFiles.SelectedItems.Count
-        $message += [System.Environment]::NewLine + "(this doesn't affect the original files)"
+$btnMissingDate.add_Click({
+    if ($RefreshCmd.CanExecute($null, $lvMediaFiles)) {
+        $RefreshCmd.Execute($null, $lvMediaFiles)
     }
-    if ($removeDuplicates) {
-        $message += [System.Environment]::NewLine + [System.Environment]::NewLine
-        $message += "Duplicates of this file will also be removed from the list too, if there are any."
-    }
-    [System.Windows.MessageBoxResult]$result = [System.Windows.MessageBox]::Show(
-        $message, 
-        "Remove item from media list", 
-        [System.Windows.MessageBoxButton]::YesNo,
-        [System.Windows.MessageBoxImage]::Exclamation,
-        [System.Windows.MessageBoxResult]::No
-    )
-    if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
-        $lvMediaFiles.SelectedItems | ForEach-Object {
-            $mediaCollection.RemoveItem($_, $removeDuplicates)
-        }
-        Invoke-UI { Update-MediaItems }
-    }    
-}
-
-([System.Windows.Controls.MenuItem]$window.FindName("menuRemoveItem")).add_Click($removeHandler);
-([System.Windows.Controls.MenuItem]$window.FindName("menuRemoveItemAndDups")).add_Click($removeHandler);
-
-$btnMissingDate.add_Click({ Invoke-UI { Update-MediaItems } });
-
-$dateSourceMap = @{
-    menuUsePhotoTaken = "GooglePhotoTakenTime"
-    menuUseGoogleCreation = "GoogleCreationTime"
-    menuUseGoogleModification = "GoogleModificationTime"
-    menuUseFileCreation = "FileCreationTime"
-    menuUseFileLastWrite = "FileLastWriteTime"
-    menuUseCustomDate = $null
-}
-$dateSourceMap.Keys | ForEach-Object {
-    ([System.Windows.Controls.MenuItem]$window.FindName($_)).add_Click({
-        [System.Windows.Controls.MenuItem]$menuItem = $this
-
-        $dateSource = $dateSourceMap[$menuItem.Name]
-
-        if ($null -eq $dateSource) {
-            $dateTaken = $lvMediaFiles.SelectedItem.DateTaken
-            if ($null -ne $dateTaken) {
-                $dateFromInput = Get-DateFromDialog -InitialValue $dateTaken
-            } else {
-                $dateFromInput = Get-DateFromDialog
-            }
-        }
-        $datesToSet = $lvMediaFiles.SelectedItems | ForEach-Object {
-            if ($null -eq $dateSource) {
-                $dateToSet = $dateFromInput
-            } else {
-                $dates = Get-AllDates $_.Path
-                try {
-                    $dateToSet = $dates[$dateSource]
-                } catch {
-                    $dateToSet = $null
-                }
-            }
-            [PSCustomObject]@{
-                Item = $_
-                Date = $dateToSet
-            }
-        }
-
-        $datesToSet | ForEach-Object {
-            if ($null -ne $_.Date) {
-                $mediaCollection.SetItemDate($_.Item, $_.Date, $true)
-            }
-        }
-        Invoke-UI { 
-            [System.ComponentModel.ICollectionView]$cvMediaFiles = [System.Windows.Data.CollectionViewSource]::GetDefaultView($lvMediaFiles.ItemsSource)
-            $cvMediaFiles.Refresh()
-         }
-    });
-}
+});
 
 $window.CommandBindings.Add(
     [System.Windows.Input.CommandBinding]::new(
@@ -412,7 +330,7 @@ $window.CommandBindings.Add(
             $_.CanExecute = $($mediaCollection.mediaItems.Count -gt 0)
         }
     )
-)
+) | Out-Null
 
 $window.CommandBindings.Add(
     [System.Windows.Input.CommandBinding]::new(
@@ -434,7 +352,7 @@ $window.CommandBindings.Add(
             }
         }
     )
-)
+) | Out-Null
 
 $window.CommandBindings.Add(
     [System.Windows.Input.CommandBinding]::new(
@@ -446,11 +364,9 @@ $window.CommandBindings.Add(
                 $mediaCollection.Export($saveDialog.FileName)
             }
         },
-        {
-            $_.CanExecute = $($mediaCollection.mediaItems.Count -gt 0)
-        }
+        { $_.CanExecute = $(($mediaCollection.mediaItems.Count -gt 0) -and ($null -ne $mediaCollection.fileName)) }
     )
-)
+) | Out-Null
 
 $window.CommandBindings.Add(
     [System.Windows.Input.CommandBinding]::new(
@@ -463,27 +379,178 @@ $window.CommandBindings.Add(
                 if ($saveDialog.ShowDialog() -eq $false) {
                     return
                 }
+                $fileName = $saveDialog.FileName
             }
             $mediaCollection.Export($fileName)
         },
-        {
-            $_.CanExecute = $($mediaCollection.mediaItems.Count -gt 0)
-        }
+        { $_.CanExecute = $($mediaCollection.mediaItems.Count -gt 0) }
+    )
+) | Out-Null
+
+$ScanDirCmd = [System.Windows.Input.RoutedUICommand]::new(
+    "Scan directory", "scandir", $window.GetType(),
+    [System.Windows.Input.InputGestureCollection]::new(
+        @(
+            [System.Windows.Input.KeyGesture]::new(
+                [System.Windows.Input.Key]::D, 
+                [System.Windows.Input.ModifierKeys]::Control
+            )
+        )
     )
 )
+$window.CommandBindings.Add(
+    [System.Windows.Input.CommandBinding]::new(
+        $ScanDirCmd, 
+        {
+            $targetFolder = Get-Folder
+            if ($null -eq $targetFolder) {
+                return
+            }
+            
+            Invoke-UI {
+                $lvMediaFolders.IsEnabled = $false
+                $lvMediaFiles.IsEnabled = $false
+            }
+        
+            $mediaCollection.AddFolder($targetFolder)
+            
+            Invoke-UI { Update-MediaItems }
+        }
+    )
+) | Out-Null
+$menuScanDir.Command = $ScanDirCmd
 
-$OpenMediaCmd = [System.Windows.Input.RoutedUICommand]::new("Open Media", "openMedia", $window.GetType())
+$OpenMediaCmd = [System.Windows.Input.RoutedUICommand]::new(
+    "Open Media", "openMedia", $window.GetType()
+)
 $window.CommandBindings.Add(
     [System.Windows.Input.CommandBinding]::new(
         $OpenMediaCmd, 
         {
             Invoke-Item $lvMediaFiles.SelectedItem.Path
-        }
+        },
+        { $_.CanExecute = $($null -ne $lvMediaFiles.SelectedItem) }
     )
-)
-$menuOpenMedia = [System.Windows.Controls.MenuItem]$window.FindName("menuOpenMedia")
+) | Out-Null
 $menuOpenMedia.Command = $OpenMediaCmd
 
-$window.ShowDialog() | Out-Null
+$RemoveMediaCmd = [System.Windows.Input.RoutedUICommand]::new(
+    "Remove Media Item", "removeMedia", $window.GetType()
+)
+$window.CommandBindings.Add(
+    [System.Windows.Input.CommandBinding]::new(
+        $RemoveMediaCmd, 
+        {
+            $removeDuplicates = $($_.Parameter -eq $true)
 
-# TODO: Context menu with commands and CanExecute
+            if ($lvMediaFiles.SelectedItems.Count -eq 1) {
+                $message = "Do you want to remove {0} from the media list?"  -f $lvMediaFiles.SelectedItems[0].FileName
+                $message += [System.Environment]::NewLine + "(this doesn't affect the original file)"
+            } else {
+                $message = "Do you want to remove these {0} items from the media list?"  -f $lvMediaFiles.SelectedItems.Count
+                $message += [System.Environment]::NewLine + "(this doesn't affect the original files)"
+            }
+            if ($removeDuplicates) {
+                $message += [System.Environment]::NewLine + [System.Environment]::NewLine
+                $message += "Duplicates of this file will also be removed from the list too, if there are any."
+            }
+            [System.Windows.MessageBoxResult]$result = [System.Windows.MessageBox]::Show(
+                $message, 
+                "Remove item from media list", 
+                [System.Windows.MessageBoxButton]::YesNo,
+                [System.Windows.MessageBoxImage]::Exclamation,
+                [System.Windows.MessageBoxResult]::No
+            )
+            if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+                $lvMediaFiles.SelectedItems | ForEach-Object {
+                    $mediaCollection.RemoveItem($_, $removeDuplicates)
+                }
+                Invoke-UI { Update-MediaItems }
+            }        
+        },
+        { $_.CanExecute = $($null -ne $lvMediaFiles.SelectedItem) }
+    )
+) | Out-Null
+$menuRemoveItem.Command = $RemoveMediaCmd
+$menuRemoveItemAndDups.Command = $RemoveMediaCmd
+$menuRemoveItemAndDups.CommandParameter = $true
+
+$SetDateCmd = [System.Windows.Input.RoutedUICommand]::new(
+    "Set Date Taken", "setDate", $window.GetType()
+)
+$window.CommandBindings.Add(
+    [System.Windows.Input.CommandBinding]::new(
+        $SetDateCmd, 
+        {
+            $dateSource = $_.Parameter
+
+            if ($null -eq $dateSource) {
+                $dateTaken = $lvMediaFiles.SelectedItem.DateTaken
+                if ($null -ne $dateTaken) {
+                    $dateFromInput = Get-DateFromDialog -InitialValue $dateTaken
+                } else {
+                    $dateFromInput = Get-DateFromDialog
+                }
+            }
+            $datesToSet = $lvMediaFiles.SelectedItems | ForEach-Object {
+                if ($null -eq $dateSource) {
+                    $dateToSet = $dateFromInput
+                } else {
+                    try {
+                        $dateToSet = $_ | Select-Object -ExpandProperty $dateSource
+                    } catch {
+                        $dateToSet = $null
+                    }
+                }
+                [PSCustomObject]@{
+                    Item = $_
+                    Date = $dateToSet
+                }
+            }
+    
+            $datesToSet | ForEach-Object {
+                if ($null -ne $_.Date) {
+                    $mediaCollection.SetItemDate($_.Item, $_.Date, $true)
+                }
+            }
+            if ($null -ne $mediaCollection.fileName) {
+                # Make sure that the changed dates are saved to the collection
+                # otherwise it could contain invalid data on reload
+                $mediaCollection.Export($mediaCollection.fileName)
+            }
+            Invoke-UI { 
+                [System.ComponentModel.ICollectionView]$cvMediaFiles = [System.Windows.Data.CollectionViewSource]::GetDefaultView($lvMediaFiles.ItemsSource)
+                $cvMediaFiles.Refresh()
+             }
+    
+        },
+        { $_.CanExecute = $($null -ne $lvMediaFiles.SelectedItem) }
+    )
+) | Out-Null
+$menuUsePhotoTaken.Command = $SetDateCmd
+$menuUsePhotoTaken.CommandParameter = "GooglePhotoTakenTime"
+$menuUseGoogleCreation.Command = $SetDateCmd
+$menuUseGoogleCreation.CommandParameter = "GoogleCreationTime"
+$menuUseGoogleModification.Command = $SetDateCmd
+$menuUseGoogleModification.CommandParameter = "GoogleModificationTime"
+$menuUseFileCreation.Command = $SetDateCmd
+$menuUseFileCreation.CommandParameter = "FileCreationTime"
+$menuUseFileLastWrite.Command = $SetDateCmd
+$menuUseFileLastWrite.CommandParameter = "FileLastWriteTime"
+$menuUseCustomDate.Command = $SetDateCmd
+
+$RefreshCmd = [System.Windows.Input.RoutedUICommand]::new(
+    "Refresh Media List", "refresh", $window.GetType()
+)
+$window.CommandBindings.Add(
+    [System.Windows.Input.CommandBinding]::new(
+        $RefreshCmd, 
+        {
+            Invoke-UI { Update-MediaItems }
+        },
+        { $_.CanExecute = $($mediaCollection.mediaItems.Count -gt 0) }
+    )
+) | Out-Null
+$menuOpenMedia.Command = $RefreshCmd
+
+$window.ShowDialog() | Out-Null
